@@ -6,7 +6,7 @@ services:
     runtime: node
     plan: starter
     rootDir: api
-    buildCommand: npm install && npx prisma generate && npm run build && npx prisma db push
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build && npx prisma db push
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:

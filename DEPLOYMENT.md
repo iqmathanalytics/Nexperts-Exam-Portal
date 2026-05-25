@@ -54,7 +54,7 @@ Do **not** commit `api/.env` or `proctor-ace-ui/.env` (they are in `.gitignore`)
 
 1. **New → Web Service** → connect repo.
 2. **Root directory:** `api`
-3. **Build:** `npm install && npx prisma generate && npm run build && npx prisma db push`
+3. **Build:** `npm install --include=dev && npx prisma generate && npm run build && npx prisma db push`
 4. **Start:** `npm start`
 5. **Health check:** `/api/health`
 
@@ -103,27 +103,92 @@ curl https://nexperts-proctoring.onrender.com/health
 
 ---
 
-## Step 2 — Deploy frontend on Netlify
+## Step 2 — Deploy frontend on Netlify (detailed)
 
-1. [Netlify](https://app.netlify.com) → **Add new site** → **Import from Git**.
-2. Select the same GitHub repo.
-3. **Site settings:**
-   - **Base directory:** `proctor-ace-ui`
-   - **Build command:** `npm run build` (from `netlify.toml`)
-   - **Publish directory:** `dist/client`
-   - **Node version:** 22
-4. **Environment variables:**
+Your API is already live at **https://nexperts-api.onrender.com**. Netlify will host only the UI in `proctor-ace-ui/`.
 
-| Variable | Value |
-|----------|--------|
-| `VITE_API_URL` | `https://nexperts-api.onrender.com` (your Render API URL) |
+### 2.1 — Create the Netlify site
 
-5. **Deploy site**. Copy the Netlify URL (e.g. `https://something.netlify.app`).
+1. Open **[Netlify](https://app.netlify.com)** and sign in (GitHub login is easiest).
+2. Click **Add new site** → **Import an existing project**.
+3. Choose **GitHub** and authorize Netlify if asked.
+4. Select repo: **`iqmathanalytics/Nexperts-Exam-Portal`**.
+5. On **Configure project**, set:
 
-6. Go back to **Render → nexperts-api** and update:
-   - `CLIENT_URL` = your Netlify URL
-   - `CLIENT_URLS` = `https://your-app.netlify.app` (add `https://main--your-app.netlify.app` if you use branch deploys)
-7. **Manual deploy** or wait for auto-redeploy on Render after env change.
+| Setting | Value |
+|---------|--------|
+| **Branch to deploy** | `main` |
+| **Base directory** | `proctor-ace-ui` |
+| **Build command** | `npm run build` |
+| **Publish directory** | `dist/client` |
+| **Node version** | `22` (or leave blank — `netlify.toml` sets `NODE_VERSION = "22"`) |
+
+> Netlify reads `proctor-ace-ui/netlify.toml` automatically when base directory is `proctor-ace-ui`. You should see build command and publish dir pre-filled after you set the base directory.
+
+6. Expand **Environment variables** (before first deploy) and add:
+
+| Key | Value |
+|-----|--------|
+| `VITE_API_URL` | `https://nexperts-api.onrender.com` |
+
+**Important:** No trailing slash. Do **not** use `http://localhost:3001` in production.
+
+7. Click **Deploy site**. First build usually takes **3–8 minutes** (TanStack Start + Netlify plugin).
+
+8. When deploy status is **Published**, open the site URL (e.g. `https://nexperts-exam-portal.netlify.app` or a random name). Copy this URL — you need it for Render and Stripe.
+
+### 2.2 — Optional: rename the site URL
+
+1. **Site configuration** → **Domain management** → **Options** on `*.netlify.app`.
+2. **Set custom subdomain** (e.g. `nexperts-exam` → `https://nexperts-exam.netlify.app`).
+
+### 2.3 — Wire Netlify URL back to Render API (required)
+
+The API only allows browser requests from origins listed in `CLIENT_URL` / `CLIENT_URLS`. Until you update these, login and API calls from Netlify will fail with **CORS** errors.
+
+1. Open [Render → nexperts-api](https://dashboard.render.com/web/srv-d8a8ubojo6nc73e95m6g) → **Environment**.
+2. Update (replace `YOUR-NETLIFY-URL` with your real URL, **no trailing slash**):
+
+| Variable | Example value |
+|----------|----------------|
+| `CLIENT_URL` | `https://YOUR-NETLIFY-URL.netlify.app` |
+| `CLIENT_URLS` | `https://YOUR-NETLIFY-URL.netlify.app` |
+| `STRIPE_SUCCESS_URL` | `https://YOUR-NETLIFY-URL.netlify.app/payment-success` |
+| `STRIPE_CANCEL_URL` | `https://YOUR-NETLIFY-URL.netlify.app/dashboard/exams?canceled=1` |
+
+3. If you use **Netlify branch deploys** (preview URLs like `https://deploy-preview-1--site.netlify.app`), add each preview origin to `CLIENT_URLS`, comma-separated:
+
+```text
+https://YOUR-NETLIFY-URL.netlify.app,https://main--YOUR-SITE-NAME.netlify.app
+```
+
+4. Click **Save changes**. Render will redeploy the API automatically.
+
+### 2.4 — Verify Netlify ↔ API
+
+1. Open your Netlify URL in a **private/incognito** window.
+2. Open browser **DevTools** → **Network**.
+3. Try **candidate login** (OTP) or **admin login**.
+4. Confirm requests go to `https://nexperts-api.onrender.com/...`, not `localhost:3001`.
+5. If you see CORS errors, double-check `CLIENT_URLS` matches the **exact** origin in the browser address bar (scheme + host, no path).
+
+### 2.5 — Redeploy after env changes
+
+| Change | Action |
+|--------|--------|
+| Changed `VITE_API_URL` on Netlify | **Deploys** → **Trigger deploy** → **Deploy site** |
+| Changed `CLIENT_URLS` on Render | Wait for Render auto-redeploy (~2 min) |
+| Changed code on `main` | Both Netlify and Render auto-deploy if connected to GitHub |
+
+### 2.6 — Netlify build troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| Build fails: cannot find module | Ensure **Base directory** = `proctor-ace-ui` (not repo root) |
+| Build fails: Node version | Set `NODE_VERSION` = `22` in Netlify env or use `netlify.toml` |
+| Site loads but API is localhost | Set `VITE_API_URL` and **redeploy** Netlify |
+| 404 on refresh / deep links | TanStack Start Netlify plugin should handle this; confirm `@netlify/vite-plugin-tanstack-start` is in `vite.config.ts` |
+| CORS on login/checkout | Update `CLIENT_URLS` on Render with exact Netlify URL |
 
 ---
 

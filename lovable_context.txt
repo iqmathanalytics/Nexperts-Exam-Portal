@@ -1,0 +1,183 @@
+We are building a professional AI-powered Exam Management & Proctored Certification Platform called “NExperts Certification Portal”.
+
+This platform is not a simple LMS. It is a secure enterprise-grade examination system where candidates can:
+- Register
+- Verify email using OTP
+- Login securely
+- Purchase exams
+- Apply vouchers
+- Attend AI-proctored exams
+- View results instantly
+- Download certificates after passing
+
+There are two major roles:
+1. Candidate/User
+2. Admin
+
+The platform will later include:
+- AI-generated exams
+- Voucher management
+- Payment management
+- Proctoring monitoring
+- Result analytics
+- Certificates
+- Reports
+- CSV exports
+- Invoice system
+
+For now, ONLY build the FRONTEND UI with clean architecture and mock data.
+
+Tech Requirements:
+- React + TypeScript
+- Tailwind CSS
+- Modern component architecture
+- Fully responsive
+- Professional SaaS dashboard design
+- Dark/light mode
+- Clean routing structure
+- Reusable UI components
+
+Design Expectations:
+- Premium enterprise feel
+- Modern certification platform look
+- Elegant cards and tables
+- Smooth animations
+- Excellent UX
+- Professional color palette
+- Proper spacing and typography
+
+========================================
+PHASE 1 UI SCREENS
+========================================
+
+1. LANDING PAGE
+Create a stunning modern landing page with:
+- Hero section
+- Platform introduction
+- Features section
+- “How It Works”
+- AI Proctoring highlights
+- Certification workflow
+- Exam categories
+- CTA buttons
+- Testimonials section
+- FAQ section
+- Navbar
+- Footer
+
+Navbar:
+- Home
+- Features
+- Exams
+- Contact
+- User Login
+- Admin Login
+
+========================================
+
+2. USER AUTHENTICATION
+
+Create:
+- User Registration Page
+- OTP Verification Page
+- User Login Page
+
+Registration Fields:
+- Full Name
+- Email Address
+- Phone Number
+- MyCAT Number
+- Degree
+- Date of Birth
+- Password UI (for future use)
+
+Features:
+- Email OTP verification UI flow
+- Modern input forms
+- Validation states
+- Success/error notifications
+- Loading states
+- Responsive mobile design
+
+Login:
+- Login using Email + OTP
+- Modern secure authentication UI
+- Remember device option
+
+========================================
+
+3. ADMIN LOGIN PAGE
+
+Create a separate admin login experience:
+- Professional secure design
+- Enterprise admin panel feel
+- Email + password UI
+- Security-focused appearance
+
+========================================
+
+4. USER DASHBOARD
+
+After login, create a professional candidate dashboard.
+
+Sidebar Menu:
+- Dashboard
+- Available Exams
+- My Exams
+- Payments
+- Certificates
+- Exam History
+- Profile Settings
+- Logout
+
+Dashboard Features:
+- Welcome banner
+- Statistics cards
+- Upcoming exams
+- Purchased exams
+- Exam attempt status
+- Pass/fail summary
+- Remaining attempts
+- Recent activities
+
+Available Exams Page:
+- Exam cards
+- Price
+- Duration
+- Difficulty
+- Attempt limit
+- Buy Exam button
+- Voucher Apply option
+
+Payment UI:
+- Stripe-style checkout UI
+- Voucher code input
+- Invoice preview modal
+- Payment success page
+
+Certificates Section:
+- Passed exams
+- Download certificate button
+- Certificate preview card
+
+========================================
+
+5. UI SYSTEM REQUIREMENTS
+
+Create:
+- Reusable buttons
+- Reusable modals
+- Form components
+- Toast notification system
+- Tables
+- Empty states
+- Loading skeletons
+- Protected route structure
+- Responsive layouts
+
+Use mock data everywhere.
+Do NOT implement backend yet.
+Do NOT implement APIs yet.
+Focus on premium production-quality frontend UI only.
+
+Structure the codebase cleanly so it can later be migrated into Cursor for backend integration.

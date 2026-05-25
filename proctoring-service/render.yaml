@@ -1,0 +1,14 @@
+# Render Blueprint — NExperts Proctoring (Python)
+# Deploy as a separate web service from the API for better CPU isolation.
+services:
+  - type: web
+    name: nexperts-proctoring
+    runtime: python
+    plan: starter
+    rootDir: proctoring-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENABLE_HEAVY_DETECTION
+        value: "false"

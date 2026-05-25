@@ -1,0 +1,60 @@
+# Render Blueprint — deploy API + Proctoring as separate web services
+# Dashboard: New → Blueprint → connect GitHub repo (root of monorepo)
+services:
+  - type: web
+    name: nexperts-api
+    runtime: node
+    plan: starter
+    rootDir: api
+    buildCommand: npm install && npx prisma generate && npm run build && npx prisma db push
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CLIENT_URL
+        sync: false
+      - key: CLIENT_URLS
+        sync: false
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_SENDER_EMAIL
+        sync: false
+      - key: BREVO_SENDER_NAME
+        value: Nexperts Academy
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_SUCCESS_URL
+        sync: false
+      - key: STRIPE_CANCEL_URL
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+      - key: PROCTORING_SERVICE_URL
+        sync: false
+
+  - type: web
+    name: nexperts-proctoring
+    runtime: python
+    plan: starter
+    rootDir: proctoring-service
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: ENABLE_HEAVY_DETECTION
+        value: "false"

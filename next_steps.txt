@@ -1,0 +1,280 @@
+Build the complete Admin Panel UI + Exam Management UI.
+
+Objective:
+The admin should be able to fully manage:
+- Exams
+- Questions
+- Vouchers
+- Users
+- Payments
+- Results
+- Proctoring Violations
+- Certificates
+- Reports
+
+This is an enterprise-grade certification management system, so the admin dashboard must feel like a professional SaaS admin platform.
+
+IMPORTANT:
+Still FRONTEND ONLY.
+Use mock data.
+No backend/API implementation yet.
+
+========================================
+ADMIN PANEL REQUIREMENTS
+========================================
+
+Create a modern admin dashboard with:
+- Responsive sidebar
+- Top navbar
+- Search
+- Notifications
+- Admin profile dropdown
+- Dark/light mode
+- Professional analytics cards
+- Data tables
+- Charts placeholders
+
+Sidebar Menu:
+- Dashboard
+- Exam Management
+- Question Bank
+- AI Question Generator
+- Users
+- Payments
+- Vouchers
+- Exam Monitoring
+- Results
+- Certificates
+- Reports
+- Settings
+- Logout
+
+========================================
+1. ADMIN DASHBOARD
+========================================
+
+Dashboard Widgets:
+- Total Users
+- Active Exams
+- Revenue
+- Passed Candidates
+- Failed Candidates
+- Ongoing Exams
+- Total Violations
+- Voucher Usage
+
+Create:
+- Revenue chart placeholder
+- Exam activity graph
+- Recent exam attempts table
+- Recent payments table
+- Violation alerts section
+
+========================================
+2. EXAM MANAGEMENT
+========================================
+
+Create:
+- Exam listing page
+- Create Exam page
+- Edit Exam page
+
+Exam Configuration Fields:
+- Exam Title
+- Description
+- Exam Category
+- Duration
+- Total Questions
+- Passing Percentage
+- Max Attempts
+- Exam Price
+- Start Date
+- End Date
+- Exam Status
+- AI Proctoring Enable Toggle
+- Fullscreen Enforcement Toggle
+- Tab Switch Detection Toggle
+- Webcam Monitoring Toggle
+
+Features:
+- Publish/Unpublish exam
+- Duplicate exam
+- Delete exam
+- Search/filter exams
+
+========================================
+3. QUESTION BANK
+========================================
+
+Create a professional question management system.
+
+Features:
+- Add Question
+- Edit Question
+- Delete Question
+- Bulk Upload Questions
+- Import CSV/XLSX UI
+- Question Categories
+- Difficulty Levels
+- Tags
+
+Question Types:
+- Multiple Choice
+- True/False
+- Scenario-based Questions
+
+Question Form:
+- Question Title
+- Options
+- Correct Answer
+- Explanation
+- Difficulty
+- Topic
+
+Create:
+- Question preview modal
+- Bulk upload template UI
+- Upload progress UI
+
+========================================
+4. AI QUESTION GENERATOR
+========================================
+
+Create an AI-powered exam generation UI using Groq LLM branding conceptually.
+
+Features:
+- Generate questions from topic
+- Difficulty selector
+- Number of questions
+- Question type selection
+- AI-generated preview section
+- Accept/Edit/Reject generated questions
+
+UI ONLY.
+No API implementation yet.
+
+========================================
+5. USER MANAGEMENT
+========================================
+
+Create:
+- Users table
+- User profile page
+- Exam history page
+- Payment history page
+- Attempt tracking
+
+Features:
+- Search/filter users
+- Suspend user
+- View candidate details
+- View violations
+- View certificates
+- Download user report
+
+========================================
+6. PAYMENT MANAGEMENT
+========================================
+
+Create:
+- Payment analytics
+- Transaction table
+- Invoice preview modal
+- Refund status UI
+
+Table Columns:
+- User
+- Exam
+- Amount
+- Voucher Used
+- Payment Status
+- Invoice ID
+- Date
+
+========================================
+7. VOUCHER MANAGEMENT
+========================================
+
+Create full voucher management UI.
+
+Features:
+- Create Voucher
+- Edit Voucher
+- Disable Voucher
+- Voucher usage tracking
+
+Voucher Fields:
+- Voucher Code
+- Discount Type
+- Discount Amount
+- Applicable Exams
+- Expiry Date
+- Usage Limit
+- Active Status
+
+========================================
+8. EXAM MONITORING
+========================================
+
+Create a live proctoring monitoring dashboard UI.
+
+Features:
+- Live exam session cards
+- Candidate webcam placeholders
+- Violation alerts
+- Tab switch logs
+- Fullscreen exit logs
+- Face missing alerts
+- Multi-device detection alerts
+- Warning counter display
+
+Violation Rules:
+- Maximum 3 warnings
+- Auto-flag after limit exceeded
+
+Create:
+- Live monitoring cards
+- Violation timeline UI
+- Activity logs table
+
+========================================
+9. RESULTS & CERTIFICATES
+========================================
+
+Create:
+- Results table
+- Pass/fail analytics
+- Certificate management UI
+
+Features:
+- Download certificate
+- Regenerate certificate
+- Result filtering
+- Score analytics
+
+========================================
+10. REPORTS SECTION
+========================================
+
+Create reporting pages with:
+- CSV export UI
+- Analytics placeholders
+- Revenue reports
+- Candidate performance reports
+- Exam completion reports
+- Violation reports
+
+========================================
+UI/UX REQUIREMENTS
+========================================
+
+- Enterprise-grade UI quality
+- Highly reusable components
+- Professional tables
+- Responsive admin experience
+- Smooth transitions
+- Clean folder structure
+- Production-ready frontend architecture
+
+Generate complete frontend UI only using mock data.
+No backend/API implementation yet.

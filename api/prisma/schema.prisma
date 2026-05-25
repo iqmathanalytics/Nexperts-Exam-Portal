@@ -1,0 +1,210 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CANDIDATE
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum ExamStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  REFUNDED
+}
+
+enum AttemptResult {
+  PASS
+  FAIL
+  IN_PROGRESS
+}
+
+enum OtpPurpose {
+  REGISTER
+  LOGIN
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+  SCENARIO
+}
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  fullName      String
+  phone         String?
+  icPassport    String?
+  mycat         String?
+  degree        String?
+  dob           DateTime?
+  passwordHash  String?
+  role          Role       @default(CANDIDATE)
+  status        UserStatus @default(ACTIVE)
+  emailVerified Boolean    @default(false)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  payments     Payment[]
+  attempts     ExamAttempt[]
+  certificates Certificate[]
+  violations   ProctoringViolation[]
+}
+
+model OtpCode {
+  id        String     @id @default(cuid())
+  email     String
+  code      String
+  purpose   OtpPurpose
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime   @default(now())
+
+  @@index([email, purpose])
+}
+
+model Exam {
+  id            String     @id @default(cuid())
+  title         String
+  category      String
+  description   String     @db.Text
+  duration      Int
+  questions     Int
+  passScore     Int
+  maxAttempts   Int        @default(3)
+  price         Decimal    @db.Decimal(10, 2)
+  startDate     DateTime?
+  endDate       DateTime?
+  status        ExamStatus @default(DRAFT)
+  proctoring    Boolean    @default(true)
+  fullscreen    Boolean    @default(true)
+  tabDetection  Boolean    @default(true)
+  webcam        Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  questionItems Question[]
+  payments      Payment[]
+  attempts      ExamAttempt[]
+  vouchers      VoucherExam[]
+  certificates  Certificate[]
+}
+
+model Question {
+  id            String       @id @default(cuid())
+  examId        String?
+  title         String       @db.Text
+  type          QuestionType
+  options       Json
+  correctAnswer String
+  explanation   String?      @db.Text
+  difficulty    String
+  topic         String
+  tags          Json?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  exam Exam? @relation(fields: [examId], references: [id], onDelete: SetNull)
+}
+
+model Voucher {
+  id             String   @id @default(cuid())
+  code           String   @unique
+  discountType   String
+  discountAmount Decimal  @db.Decimal(10, 2)
+  usageLimit     Int
+  usedCount      Int      @default(0)
+  expiry         DateTime
+  active         Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  exams    VoucherExam[]
+  payments Payment[]
+}
+
+model VoucherExam {
+  voucherId String
+  examId    String
+
+  voucher Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  exam    Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+
+  @@id([voucherId, examId])
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  userId            String
+  examId            String
+  amount            Decimal       @db.Decimal(10, 2)
+  voucherId         String?
+  status            PaymentStatus @default(PENDING)
+  invoiceId         String        @unique
+  stripeSessionId   String?
+  scheduledStartAt  DateTime?
+  scheduledEndAt    DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id])
+  exam    Exam     @relation(fields: [examId], references: [id])
+  voucher Voucher? @relation(fields: [voucherId], references: [id])
+}
+
+model ExamAttempt {
+  id        String         @id @default(cuid())
+  userId    String
+  examId    String
+  score     Int?
+  result    AttemptResult  @default(IN_PROGRESS)
+  startedAt DateTime       @default(now())
+  endedAt   DateTime?
+  warnings  Int            @default(0)
+
+  user       User                  @relation(fields: [userId], references: [id])
+  exam       Exam                  @relation(fields: [examId], references: [id])
+  violations ProctoringViolation[]
+}
+
+model Certificate {
+  id           String   @id @default(cuid())
+  userId       String
+  examId       String
+  credentialId String   @unique
+  score        Int
+  issuedOn     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  exam Exam @relation(fields: [examId], references: [id])
+}
+
+model ProctoringViolation {
+  id        String   @id @default(cuid())
+  attemptId String
+  userId    String
+  type      String
+  detail    String?
+  createdAt DateTime @default(now())
+
+  attempt ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id])
+}

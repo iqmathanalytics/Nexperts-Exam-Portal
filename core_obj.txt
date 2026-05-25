@@ -1,0 +1,235 @@
+This sounds like a full exam-management platform, not just a “server.” I’ll outline it as a practical system you can build in phases: candidate registration, payments, vouchers, question bank, exams, results, receipts/invoices, and admin controls.Thought for 7sYes — you can build this as an Exam Management & Voucher System.
+Core Modules
+
+
+Candidate Registration
+
+
+Candidate profile
+
+
+IC/passport
+
+
+Email/phone
+
+
+Course/exam selection
+
+
+Exam batch/session
+
+
+
+
+Payment Module
+
+
+Payment status: pending/paid/refunded
+
+
+Payment method: FPX, card, bank transfer, cash
+
+
+Auto-generate invoice
+
+
+Auto-generate receipt after payment
+
+
+Malaysia e-Invoice readiness / MyInvois API integration later, depending on your company threshold. LHDN says e-Invoice applies in phases, with MyInvois Portal/API options. 
+
+
+
+
+Exam Voucher Code Generator
+
+
+Unique code per candidate
+
+
+Example: NX-CEH-2026-A7K92P
+
+
+Status: unused / assigned / redeemed / expired
+
+
+Expiry date
+
+
+Exam attempt limit
+
+
+
+
+Question Bank
+
+
+Add/edit/delete questions
+
+
+Multiple choice / true-false / scenario questions
+
+
+Category/topic tagging
+
+
+Difficulty level
+
+
+Random question selection
+
+
+Version control for updated questions
+
+
+
+
+Exam Engine
+
+
+Login using candidate account or voucher
+
+
+Timer
+
+
+Randomized questions
+
+
+Auto-submit when time ends
+
+
+Prevent multiple attempts unless allowed
+
+
+Basic anti-cheat features
+
+
+
+
+Result & Score Management
+
+
+Auto marking for objective questions
+
+
+Manual marking if needed
+
+
+Score percentage
+
+
+Pass/fail status
+
+
+Result slip
+
+
+Admin can update/review scores
+
+
+
+
+Admin Dashboard
+
+
+Candidates
+
+
+Payments
+
+
+Invoices/receipts
+
+
+Voucher codes
+
+
+Exams
+
+
+Question bank
+
+
+Results
+
+
+Reports
+
+
+
+
+Recommended User Roles
+
+
+Super Admin – full control
+
+
+Finance/Admin – payments, receipts, invoices
+
+
+Exam Manager – questions, exams, results
+
+
+Candidate – register, pay, take exam, view result
+
+
+Trainer/Marker – review answers if manual marking is needed
+
+
+Suggested Technology
+For a serious system:
+
+
+Frontend: React / Next.js
+
+
+Backend: Laravel, Django, or Node.js
+
+
+Database: PostgreSQL or MySQL
+
+
+Payment Gateway Malaysia: ToyyibPay, Billplz, iPay88, Stripe, FPX
+
+
+PDF Generation: invoices, receipts, result slips
+
+
+Hosting: AWS, Azure, DigitalOcean, or local Malaysian cloud
+
+
+Build in Phases
+Phase 1: Candidate registration, payment tracking, invoice/receipt, voucher generation.
+Phase 2: Question bank, exam timer, auto marking, results.
+Phase 3: E-invoice integration, advanced reporting, anti-cheat, certificate generation.
+Phase 4: Multi-branch, corporate clients, bulk candidate upload, API integration.
+Important Features to Include
+
+
+Unique voucher code validation
+
+
+Audit log for admin changes
+
+
+Backup system
+
+
+Secure login with OTP/email verification
+
+
+Export to Excel/PDF
+
+
+Candidate payment history
+
+
+Exam attempt history
+
+
+Question version history
+
+
+This should be treated as a custom LMS + exam voucher + finance system, not a simple website.

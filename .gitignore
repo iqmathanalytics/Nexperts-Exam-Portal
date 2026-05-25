@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build / cache
+dist/
+build/
+.netlify/
+.vite/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+api/.env
+proctor-ace-ui/.env
+
+# Prisma / Python
+api/node_modules/
+__pycache__/
+*.py[cod]
+.Python
+.venv/
+venv/
+
+# Proctoring models (downloaded at runtime)
+proctoring-service/*.onnx
+proctoring-service/*.task
+proctoring-service/yolov8n.pt
+proctoring-service/yunet.onnx
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
+
+# Test / temp
+coverage/
+*.tmp
+
+# Local reference clone (not part of deploy)
+nexpert-quiz-backend/

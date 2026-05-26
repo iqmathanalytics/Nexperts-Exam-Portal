@@ -225,7 +225,6 @@ router.patch("/me", requireAuth(), async (req: AuthedRequest, res) => {
         fullName: true,
         phone: true,
         icPassport: true,
-        mycat: true,
         degree: true,
         dob: true,
         role: true,

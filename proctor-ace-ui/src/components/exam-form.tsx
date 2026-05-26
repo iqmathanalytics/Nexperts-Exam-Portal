@@ -18,7 +18,6 @@ const defaultForm: ExamFormState = {
   maxAttempts: 3,
   price: 149,
   startDate: "",
-  endDate: "",
   status: "Draft",
   proctoring: true,
   fullscreen: true,
@@ -101,12 +100,8 @@ export function ExamForm({
           <Input type="number" value={form.price} onChange={(e) => set("price", +e.target.value)} />
         </div>
         <div className="space-y-2">
-          <Label>Start date</Label>
+          <Label>Start date (optional)</Label>
           <Input type="date" value={form.startDate} onChange={(e) => set("startDate", e.target.value)} />
-        </div>
-        <div className="space-y-2">
-          <Label>End date</Label>
-          <Input type="date" value={form.endDate} onChange={(e) => set("endDate", e.target.value)} />
         </div>
       </div>
 

@@ -9,7 +9,6 @@ export type ExamFormState = {
   maxAttempts: number;
   price: number;
   startDate: string;
-  endDate: string;
   status: "Draft" | "Published" | "Archived";
   proctoring: boolean;
   fullscreen: boolean;

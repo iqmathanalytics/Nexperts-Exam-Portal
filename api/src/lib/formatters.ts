@@ -36,7 +36,6 @@ export function formatExam(e: Exam) {
     maxAttempts: e.maxAttempts,
     price: Number(e.price),
     startDate: e.startDate ? e.startDate.toISOString().slice(0, 10) : "",
-    endDate: e.endDate ? e.endDate.toISOString().slice(0, 10) : "",
     status: examStatusToUi(e.status),
     proctoring: e.proctoring,
     fullscreen: e.fullscreen,

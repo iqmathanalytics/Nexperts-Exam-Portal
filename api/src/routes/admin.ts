@@ -657,8 +657,12 @@ router.post("/ai/generate-from-pdf", upload.single("pdf"), async (req, res) => {
     });
   } catch (e) {
     if (e instanceof z.ZodError) return res.status(400).json({ error: e.flatten() });
-    console.error(e);
-    res.status(500).json({ error: "PDF question generation failed" });
+    console.error("PDF generate error:", e);
+    const detail = e instanceof Error ? e.message : "PDF question generation failed";
+    res.status(500).json({
+      error: "PDF question generation failed",
+      ...(env.nodeEnv !== "production" ? { detail } : {}),
+    });
   }
 });
 

@@ -17,7 +17,7 @@ function Register() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({
-    fullName: "", email: "", phone: "", mycat: "", degree: "", dob: "", password: "",
+    fullName: "", email: "", phone: "", icPassport: "", mycat: "", degree: "", dob: "", password: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -29,6 +29,7 @@ function Register() {
     if (!form.fullName) next.fullName = "Required";
     if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Valid email required";
     if (form.phone.length < 6) next.phone = "Required";
+    if (!form.icPassport) next.icPassport = "Required";
     if (!form.mycat) next.mycat = "Required";
     if (!form.password || form.password.length < 6) next.password = "Min 6 characters";
     setErrors(next);
@@ -42,6 +43,7 @@ function Register() {
           fullName: form.fullName,
           email: form.email,
           phone: form.phone,
+          icPassport: form.icPassport,
           mycat: form.mycat,
           degree: form.degree || undefined,
           dob: form.dob || undefined,
@@ -81,9 +83,14 @@ function Register() {
         <Field label="Email" error={errors.email}>
           <Input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} placeholder="you@company.com" />
         </Field>
-        <Field label="Phone" error={errors.phone}>
-          <Input value={form.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+60 12-345 6789" />
-        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Phone" error={errors.phone}>
+            <Input value={form.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+60 12-345 6789" />
+          </Field>
+          <Field label="IC / Passport" error={errors.icPassport}>
+            <Input value={form.icPassport} onChange={(e) => update("icPassport", e.target.value)} placeholder="901234-10-5678" />
+          </Field>
+        </div>
         <Field label="MyCAT Number" error={errors.mycat}>
           <Input value={form.mycat} onChange={(e) => update("mycat", e.target.value)} placeholder="MYCAT-XXXX" />
         </Field>

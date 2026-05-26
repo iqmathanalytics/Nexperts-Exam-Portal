@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -49,7 +48,6 @@ function AiGenerator() {
   const [difficulty, setDifficulty] = useState("Intermediate");
   const [qType, setQType] = useState("Mixed");
   const [examId, setExamId] = useState("");
-  const [saveToBank, setSaveToBank] = useState(true);
   const [exams, setExams] = useState<{ id: string; title: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState<GeneratedQ[]>([]);
@@ -69,37 +67,27 @@ function AiGenerator() {
   const applyGenerateResult = (res: GenerateResponse) => {
     setGroqConfigured(res.groqConfigured ?? null);
     setLastSource(res.source);
-    if (res.saved && res.savedCount) {
-      setGenerated([]);
-      const from = sourceMode === "pdf" ? "PDF" : res.source === "groq" ? "Groq AI" : "template fallback";
-      toast.success(`${res.savedCount} question${res.savedCount === 1 ? "" : "s"} saved to question bank (${from})`);
+    setGenerated(
+      res.questions.map((q, i) => ({
+        ...q,
+        id: q.id ?? `${sourceMode}-${Date.now()}-${i}`,
+      })),
+    );
+    if (res.source === "groq") {
+      const extra =
+        sourceMode === "pdf" && res.extractedChars
+          ? ` from PDF (${res.extractedChars.toLocaleString()} chars extracted)`
+          : "";
+      toast.success(`${res.questions.length} questions ready for review${extra} — accept to add to the bank`);
     } else {
-      setGenerated(
-        res.questions.map((q, i) => ({
-          ...q,
-          id: q.id ?? `${sourceMode}-${Date.now()}-${i}`,
-        })),
-      );
-      if (res.source === "groq") {
-        const extra =
-          sourceMode === "pdf" && res.extractedChars
-            ? ` from PDF (${res.extractedChars.toLocaleString()} chars extracted)`
-            : "";
-        toast.success(`${res.questions.length} questions generated with Groq${extra}`);
-      } else {
-        setFallbackReason(res.fallbackReason ?? "Groq unavailable; template questions were used.");
-        toast.warning(`Using template fallback (${res.questions.length} questions).`);
-      }
+      setFallbackReason(res.fallbackReason ?? "Groq unavailable; template questions were used.");
+      toast.warning(`${res.questions.length} template questions ready — review and accept to save.`);
     }
   };
 
   const generateFromPdf = async () => {
     if (!pdfFile) {
       toast.error("Choose a PDF file first");
-      return;
-    }
-    if (saveToBank && !examId) {
-      toast.error("Select a target exam to save questions");
       return;
     }
     const token = getToken();
@@ -109,8 +97,7 @@ function AiGenerator() {
     fd.append("count", String(Math.min(50, Math.max(1, parseInt(count, 10) || 5))));
     fd.append("difficulty", difficulty);
     fd.append("questionType", qType);
-    fd.append("saveToBank", saveToBank && examId ? "true" : "false");
-    if (examId) fd.append("examId", examId);
+    fd.append("saveToBank", "false");
 
     const res = await fetch(`${apiBase}/api/admin/ai/generate-from-pdf`, {
       method: "POST",
@@ -129,10 +116,6 @@ function AiGenerator() {
       toast.error("Enter a topic or syllabus");
       return;
     }
-    if (saveToBank && !examId) {
-      toast.error("Select a target exam to save questions to the question bank");
-      return;
-    }
     const n = Math.min(50, Math.max(1, parseInt(count, 10) || 5));
     return apiAuth<GenerateResponse>("/api/admin/ai/generate", {
       method: "POST",
@@ -141,8 +124,7 @@ function AiGenerator() {
         count: n,
         difficulty,
         questionType: qType,
-        examId: examId || undefined,
-        saveToBank: saveToBank && Boolean(examId),
+        saveToBank: false,
       }),
     });
   };
@@ -201,7 +183,7 @@ function AiGenerator() {
     <div className="space-y-6">
       <PageHeader
         title="AI question generator"
-        sub="Generate certification questions with Groq from a topic or PDF, then save to the question bank."
+        sub="Generate questions with Groq from a topic or PDF. Review in the preview panel, then accept to add them to an exam."
         action={
           <Button asChild variant="outline" size="sm">
             <Link to="/admin/questions" search={examId ? { examId } : {}}>
@@ -317,23 +299,16 @@ function AiGenerator() {
             </div>
 
             <div className="space-y-2">
-              <Label>Save to exam *</Label>
+              <Label>Target exam (for Accept)</Label>
               <Select value={examId || undefined} onValueChange={setExamId}>
-                <SelectTrigger><SelectValue placeholder="Select exam" /></SelectTrigger>
+                <SelectTrigger><SelectValue placeholder="Select exam before accepting" /></SelectTrigger>
                 <SelectContent>
                   {exams.map((e) => (
                     <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-            </div>
-
-            <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
-              <div>
-                <Label htmlFor="save-to-bank" className="text-sm font-medium">Add to question bank immediately</Label>
-                <p className="text-xs text-muted-foreground">Skip preview — questions appear in Question Bank right away</p>
-              </div>
-              <Switch id="save-to-bank" checked={saveToBank} onCheckedChange={setSaveToBank} />
+              <p className="text-[10px] text-muted-foreground">Required when you accept questions into the question bank.</p>
             </div>
 
             <div className="space-y-2">
@@ -358,13 +333,9 @@ function AiGenerator() {
                 ? sourceMode === "pdf"
                   ? "Processing PDF…"
                   : "Generating with Groq…"
-                : saveToBank
-                  ? sourceMode === "pdf"
-                    ? "Generate from PDF & save"
-                    : "Generate & save to question bank"
-                  : sourceMode === "pdf"
-                    ? "Generate from PDF"
-                    : "Generate with Groq"}
+                : sourceMode === "pdf"
+                  ? "Generate from PDF"
+                  : "Generate with Groq"}
             </Button>
 
             <p className="text-xs text-muted-foreground">
@@ -373,7 +344,7 @@ function AiGenerator() {
                 : lastSource === "template"
                   ? "Last run: template fallback (not Groq)."
                   : `Model: ${groqConfigured === false ? "not configured" : "Groq LLM"}.`}
-              {saveToBank && examTitle && ` · Will save to ${examTitle}.`}
+              {examTitle && generated.length > 0 && ` · Accept adds to ${examTitle}.`}
             </p>
           </div>
         </div>
@@ -381,15 +352,15 @@ function AiGenerator() {
         <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <div className="flex items-center justify-between">
             <h3 className="font-display font-semibold">Generated preview</h3>
-            {generated.length > 0 && !saveToBank && (
-              <Button size="sm" variant="outline" onClick={acceptAll}>Accept all to bank</Button>
+            {generated.length > 0 && (
+              <Button size="sm" variant="outline" onClick={acceptAll} disabled={!examId}>
+                Accept all to bank
+              </Button>
             )}
           </div>
           {generated.length === 0 ? (
             <p className="mt-8 text-center text-sm text-muted-foreground">
-              {saveToBank
-                ? "Generated questions are saved directly to the question bank."
-                : "Generate questions to preview them here, then accept into the bank."}
+              Generate questions to preview them here. Use Accept on each item, or Accept all, to add them to the selected exam.
             </p>
           ) : (
             <div className="mt-4 max-h-[32rem] space-y-3 overflow-y-auto">

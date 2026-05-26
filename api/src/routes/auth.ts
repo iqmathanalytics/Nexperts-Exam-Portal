@@ -15,7 +15,6 @@ const registerSchema = z.object({
   fullName: z.string().min(2),
   email: z.string().email(),
   phone: z.string().min(6),
-  icPassport: z.string().min(4),
   mycat: z.string().min(2),
   degree: z.string().optional(),
   dob: z.string().optional(),
@@ -63,7 +62,6 @@ router.post("/register", async (req, res) => {
         email: data.email,
         fullName: data.fullName,
         phone: data.phone,
-        icPassport: data.icPassport,
         mycat: data.mycat,
         degree: data.degree,
         dob: data.dob ? new Date(data.dob) : null,
@@ -74,7 +72,6 @@ router.post("/register", async (req, res) => {
       update: {
         fullName: data.fullName,
         phone: data.phone,
-        icPassport: data.icPassport,
         mycat: data.mycat,
         degree: data.degree,
         dob: data.dob ? new Date(data.dob) : null,
@@ -189,7 +186,6 @@ router.get("/me", requireAuth(), async (req: AuthedRequest, res) => {
       email: true,
       fullName: true,
       phone: true,
-      icPassport: true,
       mycat: true,
       degree: true,
       dob: true,
@@ -206,7 +202,6 @@ router.get("/me", requireAuth(), async (req: AuthedRequest, res) => {
 const profilePatchSchema = z.object({
   fullName: z.string().min(2).optional(),
   phone: z.string().min(6).optional(),
-  icPassport: z.string().min(4).optional(),
   mycat: z.string().min(2).optional(),
   degree: z.string().optional(),
   dob: z.string().optional(),
@@ -220,7 +215,6 @@ router.patch("/me", requireAuth(), async (req: AuthedRequest, res) => {
       data: {
         ...(body.fullName && { fullName: body.fullName }),
         ...(body.phone && { phone: body.phone }),
-        ...(body.icPassport && { icPassport: body.icPassport }),
         ...(body.mycat && { mycat: body.mycat }),
         ...(body.degree !== undefined && { degree: body.degree }),
         ...(body.dob && { dob: new Date(body.dob) }),

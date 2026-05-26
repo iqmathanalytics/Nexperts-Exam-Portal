@@ -16,7 +16,6 @@ type ProfileForm = {
   name: string;
   email: string;
   phone: string;
-  icPassport: string;
   mycat: string;
   degree: string;
   dob: string;
@@ -33,7 +32,7 @@ function Profile() {
   usePageDataLoad(
     "profile",
     async () => {
-      const d = await apiAuth<{ user: { fullName: string; email: string; phone: string | null; icPassport: string | null; mycat: string | null; degree: string | null; dob: Date | null; createdAt: string } }>(
+      const d = await apiAuth<{ user: { fullName: string; email: string; phone: string | null; mycat: string | null; degree: string | null; dob: Date | null; createdAt: string } }>(
         "/api/auth/me",
       );
       const u = d.user;
@@ -41,7 +40,6 @@ function Profile() {
         name: u.fullName,
         email: u.email,
         phone: u.phone ?? "",
-        icPassport: u.icPassport ?? "",
         mycat: u.mycat ?? "",
         degree: u.degree ?? "",
         dob: u.dob ? new Date(u.dob).toISOString().slice(0, 10) : "",
@@ -62,7 +60,6 @@ function Profile() {
         body: JSON.stringify({
           fullName: form.name,
           phone: form.phone,
-          icPassport: form.icPassport,
           mycat: form.mycat,
           degree: form.degree,
           dob: form.dob || undefined,
@@ -113,7 +110,6 @@ function Profile() {
               <Field label="Full name" v={form.name} onChange={(v) => update("name", v)} />
               <Field label="Email" v={form.email} onChange={() => {}} disabled />
               <Field label="Phone" v={form.phone} onChange={(v) => update("phone", v)} />
-              <Field label="IC / Passport" v={form.icPassport} onChange={(v) => update("icPassport", v)} />
               <Field label="MyCAT Number" v={form.mycat} onChange={(v) => update("mycat", v)} />
               <Field label="Degree" v={form.degree} onChange={(v) => update("degree", v)} />
               <Field label="Date of birth" v={form.dob} onChange={(v) => update("dob", v)} type="date" />

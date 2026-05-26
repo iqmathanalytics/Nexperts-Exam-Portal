@@ -22,6 +22,9 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.1.1",
     "pdf-parse": "^2.4.5",
+    "@sparticuz/chromium": "^148.0.0",
+    "pdfkit": "^0.18.0",
+    "puppeteer-core": "^25.1.0",
     "stripe": "^17.7.0",
     "zod": "^3.24.2"
   },
@@ -33,7 +36,9 @@
     "@types/multer": "^2.1.0",
     "@types/node": "^22.16.5",
     "@types/pdf-parse": "^1.1.5",
+    "@types/pdfkit": "^0.17.6",
     "prisma": "^6.19.3",
+    "puppeteer": "^25.1.0",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3"
   }

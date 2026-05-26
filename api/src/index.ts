@@ -15,15 +15,19 @@ const app = express();
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || env.clientUrls.includes(origin)) {
+      if (env.nodeEnv === "development") {
         callback(null, true);
-      } else if (env.nodeEnv === "development") {
+        return;
+      }
+      if (!origin || env.clientUrls.includes(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked: ${origin}`));
       }
     },
     credentials: true,
+    exposedHeaders: ["Content-Disposition", "Content-Type", "Content-Length"],
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   }),
 );
 
@@ -61,9 +65,21 @@ app.use("/api/attempts", attemptRoutes);
 app.use("/api/candidate", candidateRoutes);
 app.use("/api/certificates", certificateRoutes);
 
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
-  res.status(500).json({ error: "Internal server error" });
+  const origin = req.headers.origin;
+  if (
+    origin &&
+    (env.nodeEnv === "development" || env.clientUrls.includes(origin))
+  ) {
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+  if (!res.headersSent) {
+    res.status(err.message.startsWith("CORS blocked") ? 403 : 500).json({
+      error: err.message.startsWith("CORS blocked") ? err.message : "Internal server error",
+    });
+  }
 });
 
 app.listen(env.port, () => {

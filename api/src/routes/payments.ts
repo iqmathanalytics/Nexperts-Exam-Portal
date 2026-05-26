@@ -6,7 +6,9 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { validateVoucher } from "../services/voucher.js";
 import { getStripe } from "../services/stripe.js";
-import { fulfillPayment } from "../services/payment-fulfillment.js";
+import { fulfillPayment, getInvoicePdfBuffer } from "../services/payment-fulfillment.js";
+import { getInvoiceDetails } from "../services/invoice-details.js";
+import { sendPdfDownload, sendPdfJson } from "../services/pdf-buffer.js";
 import { env } from "../lib/env.js";
 import {
   generateSlotsForDate,
@@ -375,6 +377,43 @@ router.post("/reschedule", requireAuth(Role.CANDIDATE), async (req: AuthedReques
     return res.status(400).json({ error: e instanceof Error ? e.message : "Reschedule failed" });
   }
 });
+
+async function invoicePdfHandler(req: AuthedRequest, res: import("express").Response) {
+  try {
+    const result = await getInvoicePdfBuffer(String(req.params.id), req.user!.sub);
+    if (!result) return res.status(404).json({ error: "Invoice not found" });
+    sendPdfDownload(res, result.pdf, `${result.invoiceId}.pdf`);
+  } catch (e) {
+    console.error("Invoice PDF error:", e);
+    res.status(500).json({ error: "Could not generate invoice" });
+  }
+}
+
+async function invoiceDownloadJson(req: AuthedRequest, res: import("express").Response) {
+  try {
+    const result = await getInvoicePdfBuffer(String(req.params.id), req.user!.sub);
+    if (!result) return res.status(404).json({ error: "Invoice not found" });
+    sendPdfJson(res, result.pdf, `${result.invoiceId}.pdf`);
+  } catch (e) {
+    console.error("Invoice PDF error:", e);
+    res.status(500).json({ error: "Could not generate invoice" });
+  }
+}
+
+router.get("/:id/invoice", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
+  try {
+    const details = await getInvoiceDetails(String(req.params.id), req.user!.sub);
+    if (!details) return res.status(404).json({ error: "Invoice not found" });
+    res.json({ invoice: details });
+  } catch (e) {
+    console.error("Invoice details error:", e);
+    res.status(500).json({ error: "Could not load invoice" });
+  }
+});
+
+router.post("/:id/invoice-download", requireAuth(Role.CANDIDATE), invoiceDownloadJson);
+router.get("/:id/invoice.pdf", requireAuth(Role.CANDIDATE), invoicePdfHandler);
+router.post("/:id/invoice.pdf", requireAuth(Role.CANDIDATE), invoicePdfHandler);
 
 router.get("/my", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
   const payments = await prisma.payment.findMany({

@@ -85,6 +85,14 @@ Do **not** commit `api/.env` or `proctor-ace-ui/.env` (they are in `.gitignore`)
 | `STRIPE_CANCEL_URL` | `https://YOUR-SITE.netlify.app/dashboard/exams?canceled=1` |
 | `GROQ_API_KEY` | Groq API key (optional) |
 | **`PROCTORING_SERVICE_URL`** | `https://nexperts-proctoring.onrender.com` (no trailing slash) |
+| `PUPPETEER_SKIP_CHROMIUM_DOWNLOAD` | `true` (set in `render.yaml`; uses `@sparticuz/chromium` for certificate PDFs) |
+| `INVOICE_COMPANY_NAME` | Issuer name on invoices/certificates |
+| `INVOICE_COMPANY_LEGAL_NAME` | Legal entity name on PDFs |
+| `INVOICE_COMPANY_ADDRESS` | Pipe-separated lines, e.g. `Line1\|Line2\|City` |
+| `INVOICE_COMPANY_EMAIL` | Billing contact email |
+| `INVOICE_COMPANY_PHONE` | Optional |
+| `INVOICE_COMPANY_WEBSITE` | e.g. `https://nexperts.io` |
+| `INVOICE_COMPANY_TAX_ID` | Optional tax / SST ID |
 
 **Smoke test:**
 
@@ -203,7 +211,32 @@ Update Stripe redirect URLs if you use a custom domain on Netlify.
 
 ---
 
-## Step 4 — Production checklist
+## Step 4 — Invoices & certificates (production)
+
+These ship with the API repo — **no extra upload step** if `api/assets/` is in Git:
+
+| Asset | Path |
+|-------|------|
+| Certificate background | `api/assets/certificate-template.png` |
+| Script font (PDF) | `api/assets/fonts/GreatVibes-Regular.ttf` |
+
+**Certificate PDFs** use Puppeteer + HTML in production (`@sparticuz/chromium`). First download after deploy can take **10–30 seconds** on Render Starter (512 MB). If PDFs time out or return 500, upgrade **nexperts-api** to **Standard** (1 GB+ RAM).
+
+**Smoke test** (after login, use a real certificate id):
+
+```bash
+# Health
+curl https://nexperts-api.onrender.com/api/health
+
+# Public certificate page data (no auth)
+curl https://nexperts-api.onrender.com/api/certificates/YOUR_CREDENTIAL_ID
+```
+
+On Netlify, confirm `proctor-ace-ui/public/certificate-template.png` exists (UI preview). After payment, check email for invoice attachment and dashboard **Payments** / **Certificates** download.
+
+---
+
+## Step 5 — Production checklist
 
 - [ ] `curl` API `/api/health` returns `{ "ok": true }`
 - [ ] `curl` proctoring `/health` returns `{ "ok": true }`
@@ -213,6 +246,8 @@ Update Stripe redirect URLs if you use a custom domain on Netlify.
 - [ ] `CLIENT_URLS` on API includes exact Netlify origin
 - [ ] Schedule exam + Stripe checkout works
 - [ ] Exam proctoring shows **FACE OK** with camera on
+- [ ] Invoice PDF downloads from dashboard; payment email includes invoice
+- [ ] Certificate PDF downloads; share URL `/certificate/:credentialId` loads
 
 ### Optional — seed database on Render
 
@@ -246,6 +281,8 @@ npx tsx prisma/seed.ts
 | False violations | Redeploy proctoring after latest `yolo_detector.py` |
 | Stripe stuck | Webhook URL + `STRIPE_WEBHOOK_SECRET` on API |
 | Render build fails Prisma | Ensure `DATABASE_URL` is set before build runs `db push` |
+| Certificate PDF 500 / timeout | API on Standard plan; check `api/assets/certificate-template.png` deployed; logs for Puppeteer errors |
+| Invoice PDF missing company details | Set `INVOICE_COMPANY_*` on Render API |
 
 ---
 

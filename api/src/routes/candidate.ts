@@ -1,7 +1,9 @@
-import { Router } from "express";
+import { Router, type Response } from "express";
 import { ExamStatus, PaymentStatus, Role } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
+import { generateCertificatePdf } from "../services/pdf-certificate.js";
+import { sendPdfDownload, sendPdfJson } from "../services/pdf-buffer.js";
 import { formatExam } from "../lib/formatters.js";
 import {
   formatScheduleForApi,
@@ -193,17 +195,64 @@ router.get("/exams/:examId/schedule", requireAuth(Role.CANDIDATE), async (req: A
   });
 });
 
+async function loadCertificatePdf(req: AuthedRequest) {
+  const cert = await prisma.certificate.findFirst({
+    where: { id: String(req.params.id), userId: req.user!.sub },
+    include: { user: true, exam: true },
+  });
+  if (!cert) return null;
+
+  const pdf = await generateCertificatePdf({
+    recipientName: cert.user.fullName,
+    examTitle: cert.exam.title,
+    description: cert.exam.description,
+    credentialId: cert.credentialId,
+    issuedOn: cert.issuedOn,
+    score: cert.score,
+  });
+
+  return { pdf, filename: `certificate-${cert.credentialId}.pdf` };
+}
+
+async function certificatePdfHandler(req: AuthedRequest, res: Response) {
+  try {
+    const result = await loadCertificatePdf(req);
+    if (!result) return res.status(404).json({ error: "Certificate not found" });
+    sendPdfDownload(res, result.pdf, result.filename);
+  } catch (e) {
+    console.error("Certificate PDF error:", e);
+    res.status(500).json({ error: "Could not generate certificate" });
+  }
+}
+
+async function certificateDownloadJson(req: AuthedRequest, res: Response) {
+  try {
+    const result = await loadCertificatePdf(req);
+    if (!result) return res.status(404).json({ error: "Certificate not found" });
+    sendPdfJson(res, result.pdf, result.filename);
+  } catch (e) {
+    console.error("Certificate PDF error:", e);
+    res.status(500).json({ error: "Could not generate certificate" });
+  }
+}
+
+router.post("/certificates/:id/download", requireAuth(Role.CANDIDATE), certificateDownloadJson);
+router.get("/certificates/:id/pdf", requireAuth(Role.CANDIDATE), certificatePdfHandler);
+router.post("/certificates/:id/pdf", requireAuth(Role.CANDIDATE), certificatePdfHandler);
+
 router.get("/certificates", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
   const certs = await prisma.certificate.findMany({
     where: { userId: req.user!.sub },
-    include: { exam: true },
+    include: { exam: true, user: true },
     orderBy: { issuedOn: "desc" },
   });
   res.json({
     certificates: certs.map((c) => ({
       id: c.id,
       examTitle: c.exam.title,
-      issuedOn: c.issuedOn.toISOString().slice(0, 10),
+      examDescription: c.exam.description,
+      recipientName: c.user.fullName,
+      issuedOn: c.issuedOn.toISOString(),
       score: c.score,
       credentialId: c.credentialId,
       shareUrl: `/certificate/${c.credentialId}`,

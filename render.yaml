@@ -10,6 +10,8 @@ services:
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
+      - key: PUPPETEER_SKIP_CHROMIUM_DOWNLOAD
+        value: "true"
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
@@ -45,6 +47,20 @@ services:
       - key: GROQ_MODEL
         value: llama-3.3-70b-versatile
       - key: PROCTORING_SERVICE_URL
+        sync: false
+      - key: INVOICE_COMPANY_NAME
+        value: Nexperts Academy
+      - key: INVOICE_COMPANY_LEGAL_NAME
+        sync: false
+      - key: INVOICE_COMPANY_ADDRESS
+        sync: false
+      - key: INVOICE_COMPANY_EMAIL
+        sync: false
+      - key: INVOICE_COMPANY_PHONE
+        sync: false
+      - key: INVOICE_COMPANY_WEBSITE
+        sync: false
+      - key: INVOICE_COMPANY_TAX_ID
         sync: false
 
   - type: web

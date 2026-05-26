@@ -31,4 +31,13 @@ export const env = {
   groqApiKey: process.env.GROQ_API_KEY ?? "",
   groqModel: process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile",
   proctoringServiceUrl: process.env.PROCTORING_SERVICE_URL ?? "http://127.0.0.1:8765",
+  invoiceCompanyName: process.env.INVOICE_COMPANY_NAME ?? "Nexperts Academy",
+  invoiceCompanyLegalName: process.env.INVOICE_COMPANY_LEGAL_NAME ?? "Nexperts Academy Sdn. Bhd.",
+  invoiceCompanyAddress:
+    process.env.INVOICE_COMPANY_ADDRESS ??
+    "Level 10, Menara XYZ|Jalan Ampang|50450 Kuala Lumpur|Malaysia",
+  invoiceCompanyEmail: process.env.INVOICE_COMPANY_EMAIL ?? "billing@nexperts.io",
+  invoiceCompanyPhone: process.env.INVOICE_COMPANY_PHONE ?? "+60 3-1234 5678",
+  invoiceCompanyWebsite: process.env.INVOICE_COMPANY_WEBSITE ?? "https://nexperts.io",
+  invoiceCompanyTaxId: process.env.INVOICE_COMPANY_TAX_ID ?? "",
 };

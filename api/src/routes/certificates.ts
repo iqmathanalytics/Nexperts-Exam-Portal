@@ -15,6 +15,7 @@ router.get("/public/:credentialId", async (req, res) => {
     credentialId: cert.credentialId,
     recipientName: cert.user.fullName,
     examTitle: cert.exam.title,
+    examDescription: cert.exam.description,
     category: cert.exam.category,
     score: cert.score,
     issuedOn: cert.issuedOn.toISOString(),

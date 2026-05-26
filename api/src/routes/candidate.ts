@@ -253,7 +253,6 @@ router.get("/dashboard", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
           name: user.fullName,
           email: user.email,
           phone: user.phone,
-          mycat: user.mycat,
         }
       : null,
     stats: {

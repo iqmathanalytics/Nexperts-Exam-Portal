@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
 import { ShieldCheck, Github, Twitter, Linkedin } from "lucide-react";
+import { BRAND } from "@/lib/branding";
 
 export function SiteFooter() {
   return (
@@ -11,7 +12,7 @@ export function SiteFooter() {
               <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-emerald">
                 <ShieldCheck className="h-5 w-5 text-white" />
               </div>
-              <span className="font-display text-lg font-bold">NExperts<span className="text-accent">.</span></span>
+              <span className="font-display text-lg font-bold">{BRAND.shortName}<span className="text-accent">.</span></span>
             </Link>
             <p className="max-w-xs text-sm text-sidebar-foreground/70">
               The enterprise-grade AI-proctored certification platform trusted by thousands of professionals worldwide.
@@ -29,7 +30,7 @@ export function SiteFooter() {
         </div>
 
         <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-sidebar-border pt-6 text-xs text-sidebar-foreground/60 md:flex-row">
-          <p>© {new Date().getFullYear()} NExperts Certification Portal. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} {BRAND.copyright}. All rights reserved.</p>
           <p>ISO 27001 · SOC 2 Type II · GDPR compliant</p>
         </div>
       </div>

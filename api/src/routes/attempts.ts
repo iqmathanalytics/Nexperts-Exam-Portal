@@ -59,6 +59,7 @@ async function buildExamStartPayload(
       title: q.title,
       type: q.type,
       options: q.options as string[],
+      imageUrl: q.imageUrl ?? null,
     })),
     endsAt: endsAt.toISOString(),
   };
@@ -93,7 +94,14 @@ router.post("/start", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, re
       const phase = getSchedulePhase(paid.scheduledStartAt, paid.scheduledEndAt, {
         hasInProgress: !!inProgress,
         attemptsExhausted: attemptCount >= exam.maxAttempts,
+        attendByAt: paid.attendByAt,
       });
+      if (phase === "booking_expired") {
+        return res.status(403).json({
+          error: "Your one-year window to take this exam has expired. Contact support to repurchase.",
+          phase,
+        });
+      }
       if (phase === "too_early") {
         return res.status(403).json({
           error: "Exam not open yet. You can join the waiting room 10 minutes before start.",
@@ -325,6 +333,7 @@ function buildFallbackQuestions(examId: string, count: number) {
     difficulty: "Intermediate",
     topic: "General",
     tags: [],
+    imageUrl: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   }));

@@ -14,7 +14,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { apiAuth } from "@/lib/api-auth";
 import { usePageDataLoad } from "@/contexts/page-load-context";
-import { ApiError } from "@/lib/api-client";
+import { ApiError, apiBase } from "@/lib/api-client";
+import { getToken } from "@/lib/auth";
 import type { QuestionFormState } from "@/lib/types";
 
 type GeneratedQ = QuestionFormState & { id: string; examTitle?: string | null };
@@ -46,6 +47,8 @@ function AiGenerator() {
   const [lastSource, setLastSource] = useState<"groq" | "template" | null>(null);
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [groqConfigured, setGroqConfigured] = useState<boolean | null>(null);
+  const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   usePageDataLoad(
     "ai-generator",
@@ -55,6 +58,48 @@ function AiGenerator() {
     },
     [],
   );
+
+  const generateFromPdf = async () => {
+    if (!pdfFile) {
+      toast.error("Choose a PDF file first");
+      return;
+    }
+    if (saveToBank && !examId) {
+      toast.error("Select a target exam to save questions");
+      return;
+    }
+    setPdfLoading(true);
+    try {
+      const token = getToken();
+      const fd = new FormData();
+      fd.append("pdf", pdfFile);
+      fd.append("topic", topic);
+      fd.append("count", String(Math.min(50, Math.max(1, parseInt(count, 10) || 5))));
+      fd.append("difficulty", difficulty);
+      fd.append("questionType", qType);
+      fd.append("saveToBank", saveToBank && examId ? "true" : "false");
+      if (examId) fd.append("examId", examId);
+      const res = await fetch(`${apiBase}/api/admin/ai/generate-from-pdf`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new ApiError(data.error ?? "PDF generation failed", res.status, data);
+      if (data.savedCount) {
+        toast.success(`${data.savedCount} questions saved from PDF`);
+        setGenerated([]);
+      } else {
+        setGenerated(data.questions.map((q: GeneratedQ, i: number) => ({ ...q, id: `pdf-${i}` })));
+        toast.success(`Generated ${data.questions.length} questions from PDF`);
+      }
+      setLastSource(data.source);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "PDF generation failed");
+    } finally {
+      setPdfLoading(false);
+    }
+  };
 
   const generate = async () => {
     if (saveToBank && !examId) {
@@ -172,6 +217,27 @@ function AiGenerator() {
           </div>
         </div>
       )}
+
+      <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+        <h3 className="font-display font-semibold">Generate from PDF</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Upload a PDF syllabus or study guide. AI will generate questions from the extracted text.
+        </p>
+        <div className="mt-4 flex flex-wrap items-end gap-3">
+          <div className="space-y-1.5">
+            <Label>PDF file</Label>
+            <Input type="file" accept="application/pdf" onChange={(e) => setPdfFile(e.target.files?.[0] ?? null)} />
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            disabled={pdfLoading || !pdfFile}
+            onClick={generateFromPdf}
+          >
+            {pdfLoading ? "Processing PDF…" : "Generate from PDF"}
+          </Button>
+        </div>
+      </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">

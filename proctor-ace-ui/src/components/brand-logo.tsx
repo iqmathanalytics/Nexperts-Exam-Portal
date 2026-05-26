@@ -1,10 +1,11 @@
 import { Link } from "@tanstack/react-router";
+import { GraduationCap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { BRAND } from "@/lib/branding";
 
 type BrandLogoProps = {
   to?: string;
   className?: string;
-  imgClassName?: string;
   showText?: boolean;
   variant?: "default" | "sidebar" | "compact";
 };
@@ -12,22 +13,26 @@ type BrandLogoProps = {
 export function BrandLogo({
   to = "/",
   className,
-  imgClassName,
   showText = true,
   variant = "default",
 }: BrandLogoProps) {
-  const imgSize =
-    variant === "compact" ? "h-8 w-8" : variant === "sidebar" ? "h-9 w-auto max-w-[140px]" : "h-9 w-auto max-w-[160px]";
+  const iconSize = variant === "compact" ? "h-8 w-8" : "h-9 w-9";
+  const textSize = variant === "sidebar" ? "text-sm" : "text-base";
 
   const content = (
     <>
-      <img
-        src="/nexperts-logo.png"
-        alt="NExperts Academy"
-        className={cn(imgSize, "object-contain", imgClassName)}
-      />
-      {showText && variant === "default" && (
-        <span className="sr-only">NExperts Certification Portal</span>
+      <div
+        className={cn(
+          iconSize,
+          "flex shrink-0 items-center justify-center rounded-lg bg-gradient-emerald text-white shadow-sm",
+        )}
+      >
+        <GraduationCap className={variant === "compact" ? "h-4 w-4" : "h-5 w-5"} />
+      </div>
+      {showText && (
+        <span className={cn("font-display font-semibold tracking-tight", textSize)}>
+          {BRAND.name}
+        </span>
       )}
     </>
   );

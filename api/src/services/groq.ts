@@ -193,8 +193,9 @@ export async function generateQuestionsWithGroq(params: {
   count: number;
   difficulty: string;
   questionType: string;
+  sourceMaterial?: string;
 }): Promise<GroqGenerateResult> {
-  const { topic, count, difficulty, questionType } = params;
+  const { topic, count, difficulty, questionType, sourceMaterial } = params;
   const n = Math.min(50, Math.max(1, count));
 
   if (!env.groqApiKey?.trim()) {
@@ -210,7 +211,7 @@ export async function generateQuestionsWithGroq(params: {
       ? "Use a mix of Multiple Choice, True/False, and Scenario types."
       : `Use only "${questionType}" type.`;
 
-  const systemPrompt = `You are an expert certification exam item writer for NExperts Academy (Malaysia).
+  const systemPrompt = `You are an expert certification exam item writer.
 Return ONLY valid JSON with no markdown and no extra text.
 Schema: {"questions":[{"title":"string (full question text, at least 15 words)","type":"Multiple Choice|True/False|Scenario","options":["string"],"correctAnswer":"string","explanation":"string","difficulty":"string","topic":"string","tags":["string"]}]}
 Rules:
@@ -221,11 +222,15 @@ Rules:
 - Scenario questions must have 4 options representing actions or answers
 - Professional, accurate, non-trivial certification items`;
 
+  const materialBlock = sourceMaterial
+    ? `\n\nUse the following reference material as the primary source (stay accurate to it):\n---\n${sourceMaterial.slice(0, 12000)}\n---`
+    : "";
+
   const userPrompt = `Generate exactly ${n} exam questions.
 Topic/syllabus: ${topic}
 Difficulty: ${difficulty}
 ${typeInstruction}
-Each question must include a tags array with 1-3 relevant tags.`;
+Each question must include a tags array with 1-3 relevant tags.${materialBlock}`;
 
   try {
     let api = await callGroqApi(systemPrompt, userPrompt, true);

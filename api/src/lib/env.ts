@@ -21,7 +21,7 @@ export const env = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "7d",
   brevoApiKey: required("BREVO_API_KEY"),
   brevoSenderEmail: required("BREVO_SENDER_EMAIL"),
-  brevoSenderName: process.env.BREVO_SENDER_NAME ?? "Nexperts Academy",
+  brevoSenderName: process.env.BREVO_SENDER_NAME ?? "Certification Academy",
   adminEmail: process.env.ADMIN_EMAIL ?? "admin@nexperts.io",
   adminPassword: process.env.ADMIN_PASSWORD ?? "Admin@NExperts2026",
   stripeSecretKey: process.env.STRIPE_SECRET_KEY ?? "",

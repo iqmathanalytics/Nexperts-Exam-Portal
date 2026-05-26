@@ -313,6 +313,9 @@ function TakeExam() {
               <div key={q.id} className="rounded-xl border border-border bg-card p-5">
                 <p className="text-sm text-muted-foreground">Question {i + 1}</p>
                 <p className="mt-2 font-medium">{q.title}</p>
+                {"imageUrl" in q && q.imageUrl && (
+                  <img src={q.imageUrl as string} alt="" className="mt-3 max-h-48 rounded-md border border-border object-contain" />
+                )}
                 <RadioGroup
                   className="mt-4 space-y-2"
                   value={answers[q.id] ?? ""}

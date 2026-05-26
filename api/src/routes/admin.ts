@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { z } from "zod";
 import { ExamStatus, PaymentStatus, Role, UserStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
@@ -11,6 +12,13 @@ import {
 } from "../lib/formatters.js";
 import { env } from "../lib/env.js";
 import { generateQuestionsWithGroq } from "../services/groq.js";
+import { generateVoucherCode } from "../lib/voucher-code.js";
+import { extractTextFromPdfBuffer } from "../services/pdf-text.js";
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 12 * 1024 * 1024 },
+});
 
 const router = Router();
 const adminOnly = requireAuth(Role.ADMIN, Role.SUPER_ADMIN);
@@ -44,6 +52,7 @@ const questionBodySchema = z.object({
   difficulty: z.string(),
   topic: z.string(),
   tags: z.array(z.string()).optional(),
+  imageUrl: z.string().optional().nullable(),
 });
 
 function parseDate(s?: string) {
@@ -308,6 +317,7 @@ router.post("/questions", async (req, res) => {
         difficulty: body.difficulty,
         topic: body.topic,
         tags: body.tags ?? [],
+        imageUrl: body.imageUrl || null,
       },
     });
     res.status(201).json({ question: formatQuestion(q) });
@@ -331,6 +341,7 @@ router.put("/questions/:id", async (req, res) => {
         difficulty: body.difficulty,
         topic: body.topic,
         tags: body.tags ?? [],
+        imageUrl: body.imageUrl || null,
       },
     });
     res.json({ question: formatQuestion(q) });
@@ -359,6 +370,7 @@ router.post("/questions/bulk", async (req, res) => {
           difficulty: body.difficulty,
           topic: body.topic,
           tags: body.tags ?? [],
+          imageUrl: body.imageUrl || null,
         },
       }),
     ),
@@ -377,6 +389,7 @@ router.post("/ai/generate", async (req, res) => {
         questionType: z.string().min(1),
         examId: z.string().optional(),
         saveToBank: z.coerce.boolean().optional().default(false),
+        sourceMaterial: z.string().optional(),
       })
       .parse(req.body);
 
@@ -385,6 +398,7 @@ router.post("/ai/generate", async (req, res) => {
       count: body.count,
       difficulty: body.difficulty,
       questionType: body.questionType,
+      sourceMaterial: body.sourceMaterial,
     });
 
     let savedCount = 0;
@@ -442,101 +456,211 @@ router.post("/ai/generate", async (req, res) => {
   }
 });
 
-// ——— Vouchers ———
-router.get("/vouchers", async (_req, res) => {
-  const vouchers = await prisma.voucher.findMany({
-    include: { exams: { include: { exam: true } } },
+// ——— Voucher batches ———
+router.get("/voucher-batches", async (_req, res) => {
+  const batches = await prisma.voucherBatch.findMany({
+    include: {
+      vouchers: {
+        include: { redemptions: { select: { id: true } } },
+      },
+    },
     orderBy: { createdAt: "desc" },
   });
   res.json({
-    vouchers: vouchers.map((v) => ({
-      id: v.id,
-      code: v.code,
-      discountType: v.discountType,
-      discountAmount: Number(v.discountAmount),
-      exams: v.exams.length ? v.exams.map((e) => e.exam.title) : ["All exams"],
-      examIds: v.exams.map((e) => e.examId),
-      expiry: v.expiry.toISOString().slice(0, 10),
-      usageLimit: v.usageLimit,
-      used: v.usedCount,
-      active: v.active,
-    })),
+    batches: batches.map((b) => {
+      const used = b.vouchers.filter((v) => v.usedCount > 0).length;
+      return {
+        id: b.id,
+        label: b.label ?? `Batch ${b.createdAt.toISOString().slice(0, 10)}`,
+        discountType: b.discountType,
+        discountAmount: Number(b.discountAmount),
+        expiry: b.expiry.toISOString().slice(0, 10),
+        active: b.active,
+        quantity: b.quantity,
+        usedCount: used,
+        availableCount: b.vouchers.length - used,
+        createdAt: b.createdAt.toISOString(),
+      };
+    }),
   });
 });
 
-router.post("/vouchers", async (req, res) => {
+router.get("/voucher-batches/:id", async (req, res) => {
+  const batch = await prisma.voucherBatch.findUnique({
+    where: { id: String(req.params.id) },
+    include: {
+      vouchers: {
+        include: { redemptions: { select: { userId: true, createdAt: true } } },
+        orderBy: { code: "asc" },
+      },
+    },
+  });
+  if (!batch) return res.status(404).json({ error: "Batch not found" });
+  res.json({
+    batch: {
+      id: batch.id,
+      label: batch.label,
+      discountType: batch.discountType,
+      discountAmount: Number(batch.discountAmount),
+      expiry: batch.expiry.toISOString().slice(0, 10),
+      active: batch.active,
+      quantity: batch.quantity,
+      vouchers: batch.vouchers.map((v) => ({
+        id: v.id,
+        code: v.code,
+        used: v.usedCount > 0,
+        active: v.active,
+        redeemedAt: v.redemptions[0]?.createdAt?.toISOString() ?? null,
+      })),
+    },
+  });
+});
+
+router.post("/voucher-batches", async (req, res) => {
   const body = z
     .object({
-      code: z.string(),
+      label: z.string().optional(),
+      quantity: z.number().int().min(1).max(500),
       discountType: z.string(),
       discountAmount: z.number(),
-      usageLimit: z.number(),
       expiry: z.string(),
       active: z.boolean().default(true),
       examIds: z.array(z.string()).optional(),
     })
     .parse(req.body);
 
-  const voucher = await prisma.voucher.create({
+  const codes = new Set<string>();
+  while (codes.size < body.quantity) {
+    codes.add(generateVoucherCode(32));
+  }
+
+  const batch = await prisma.voucherBatch.create({
     data: {
-      code: body.code.toUpperCase(),
+      label: body.label,
       discountType: body.discountType,
       discountAmount: body.discountAmount,
-      usageLimit: body.usageLimit,
       expiry: new Date(body.expiry),
       active: body.active,
-      exams: body.examIds?.length
-        ? { create: body.examIds.map((examId) => ({ examId })) }
-        : undefined,
+      quantity: body.quantity,
+      vouchers: {
+        create: [...codes].map((code) => ({
+          code,
+          discountType: body.discountType,
+          discountAmount: body.discountAmount,
+          usageLimit: 1,
+          expiry: new Date(body.expiry),
+          active: body.active,
+          exams: body.examIds?.length
+            ? { create: body.examIds.map((examId) => ({ examId })) }
+            : undefined,
+        })),
+      },
     },
+    include: { vouchers: true },
   });
-  res.status(201).json({ voucher });
+
+  res.status(201).json({ batchId: batch.id, quantity: batch.vouchers.length });
 });
 
-router.put("/vouchers/:id", async (req, res) => {
-  const body = z
-    .object({
-      code: z.string(),
-      discountType: z.string(),
-      discountAmount: z.number(),
-      usageLimit: z.number(),
-      expiry: z.string(),
-      active: z.boolean(),
-      examIds: z.array(z.string()).optional(),
-    })
-    .parse(req.body);
-
-  await prisma.voucherExam.deleteMany({ where: { voucherId: String(req.params.id) } });
-  const voucher = await prisma.voucher.update({
+router.get("/voucher-batches/:id/csv", async (req, res) => {
+  const batch = await prisma.voucherBatch.findUnique({
     where: { id: String(req.params.id) },
-    data: {
-      code: body.code.toUpperCase(),
-      discountType: body.discountType,
-      discountAmount: body.discountAmount,
-      usageLimit: body.usageLimit,
-      expiry: new Date(body.expiry),
-      active: body.active,
-      exams: body.examIds?.length
-        ? { create: body.examIds.map((examId) => ({ examId })) }
-        : undefined,
-    },
+    include: { vouchers: { orderBy: { code: "asc" } } },
   });
-  res.json({ voucher });
+  if (!batch) return res.status(404).json({ error: "Batch not found" });
+
+  const lines = [
+    "code,discount_type,discount_amount,expiry,status",
+    ...batch.vouchers.map((v) => {
+      const status = v.usedCount > 0 ? "used" : v.active ? "available" : "inactive";
+      return `${v.code},${v.discountType},${Number(v.discountAmount)},${v.expiry.toISOString().slice(0, 10)},${status}`;
+    }),
+  ];
+  res.setHeader("Content-Type", "text/csv");
+  res.setHeader("Content-Disposition", `attachment; filename="voucher-batch-${batch.id}.csv"`);
+  res.send(lines.join("\n"));
 });
 
-router.patch("/vouchers/:id/toggle", async (req, res) => {
-  const v = await prisma.voucher.findUnique({ where: { id: String(req.params.id) } });
-  if (!v) return res.status(404).json({ error: "Not found" });
-  const voucher = await prisma.voucher.update({
-    where: { id: v.id },
-    data: { active: !v.active },
-  });
-  res.json({ active: voucher.active });
+router.patch("/voucher-batches/:id/toggle", async (req, res) => {
+  const batch = await prisma.voucherBatch.findUnique({ where: { id: String(req.params.id) } });
+  if (!batch) return res.status(404).json({ error: "Not found" });
+  const active = !batch.active;
+  await prisma.$transaction([
+    prisma.voucherBatch.update({ where: { id: batch.id }, data: { active } }),
+    prisma.voucher.updateMany({ where: { batchId: batch.id }, data: { active } }),
+  ]);
+  res.json({ active });
 });
 
-router.delete("/vouchers/:id", async (req, res) => {
-  await prisma.voucher.delete({ where: { id: String(req.params.id) } });
+router.delete("/voucher-batches/:id", async (req, res) => {
+  await prisma.voucherBatch.delete({ where: { id: String(req.params.id) } });
   res.json({ ok: true });
+});
+
+router.post("/ai/generate-from-pdf", upload.single("pdf"), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: "PDF file is required" });
+    const text = await extractTextFromPdfBuffer(req.file.buffer);
+    if (text.length < 80) {
+      return res.status(400).json({ error: "Could not extract enough text from PDF" });
+    }
+
+    const fields = z
+      .object({
+        topic: z.string().optional(),
+        count: z.coerce.number().int().min(1).max(50).default(5),
+        difficulty: z.string().default("Intermediate"),
+        questionType: z.string().default("Mixed"),
+        examId: z.string().optional(),
+        saveToBank: z.coerce.boolean().optional().default(false),
+      })
+      .parse(req.body);
+
+    const topic = fields.topic?.trim() || "Content from uploaded PDF";
+    const result = await generateQuestionsWithGroq({
+      topic,
+      count: fields.count,
+      difficulty: fields.difficulty,
+      questionType: fields.questionType,
+      sourceMaterial: text,
+    });
+
+    let savedCount = 0;
+    if (fields.saveToBank && fields.examId) {
+      const exam = await prisma.exam.findUnique({ where: { id: fields.examId } });
+      if (!exam) return res.status(404).json({ error: "Exam not found" });
+      const created = await prisma.$transaction(
+        result.questions.map((q) =>
+          prisma.question.create({
+            data: {
+              examId: fields.examId!,
+              title: q.title,
+              type: questionTypeFromUi(q.type),
+              options: q.options,
+              correctAnswer: q.correctAnswer,
+              explanation: q.explanation,
+              difficulty: q.difficulty,
+              topic: q.topic,
+              tags: q.tags ?? ["ai-generated", "pdf"],
+            },
+          }),
+        ),
+      );
+      savedCount = created.length;
+    }
+
+    res.json({
+      source: result.source,
+      fallbackReason: result.fallbackReason,
+      extractedChars: text.length,
+      savedCount,
+      questions: result.questions,
+    });
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.flatten() });
+    console.error(e);
+    res.status(500).json({ error: "PDF question generation failed" });
+  }
 });
 
 // ——— Users ———

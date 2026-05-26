@@ -114,6 +114,7 @@ router.get("/my-exams", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, 
       const schedulePhase = getSchedulePhase(p.scheduledStartAt, p.scheduledEndAt, {
         hasInProgress: !!inProgress,
         attemptsExhausted: used >= p.exam.maxAttempts,
+        attendByAt: p.attendByAt,
       });
       const schedule =
         p.scheduledStartAt && p.scheduledEndAt
@@ -140,6 +141,8 @@ router.get("/my-exams", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, 
         lastResult: last?.result,
         lastScore: last?.score ?? undefined,
         purchasedAt: p.createdAt.toISOString().slice(0, 10),
+        attendByAt: p.attendByAt?.toISOString() ?? null,
+        rescheduleCount: p.rescheduleCount,
       };
     }),
   );
@@ -171,6 +174,7 @@ router.get("/exams/:examId/schedule", requireAuth(Role.CANDIDATE), async (req: A
   const phase = getSchedulePhase(payment.scheduledStartAt, payment.scheduledEndAt, {
     hasInProgress: !!inProgress,
     attemptsExhausted: used >= payment.exam.maxAttempts,
+    attendByAt: payment.attendByAt,
   });
   const joinFrom = new Date(payment.scheduledStartAt.getTime() - 10 * 60 * 1000);
   const msUntilJoin = Math.max(0, joinFrom.getTime() - now.getTime());

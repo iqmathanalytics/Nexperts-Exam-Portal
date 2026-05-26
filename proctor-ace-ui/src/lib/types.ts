@@ -28,4 +28,5 @@ export type QuestionFormState = {
   difficulty: string;
   topic: string;
   tags: string[];
+  imageUrl?: string | null;
 };

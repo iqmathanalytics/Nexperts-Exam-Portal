@@ -1,6 +1,9 @@
+import { useRef, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -15,6 +18,22 @@ type Props = {
 };
 
 export function QuestionFormFields({ form, onChange, exams }: Props) {
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [includeImage, setIncludeImage] = useState(Boolean(form.imageUrl));
+
+  const onImageFile = (file: File | null) => {
+    if (!file) {
+      onChange({ ...form, imageUrl: null });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => onChange({ ...form, imageUrl: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+
   const setType = (type: QuestionFormState["type"]) => {
     if (type === "True/False") {
       onChange({ ...form, type, options: ["True", "False"], correctAnswer: form.correctAnswer === "False" ? "False" : "True" });
@@ -113,6 +132,37 @@ export function QuestionFormFields({ form, onChange, exams }: Props) {
         </p>
       </div>
 
+      <div className="space-y-2 rounded-lg border border-border p-3">
+        <label className="flex items-center gap-2 text-sm">
+          <Checkbox
+            checked={includeImage}
+            onCheckedChange={(c) => {
+              const on = c === true;
+              setIncludeImage(on);
+              if (!on) onChange({ ...form, imageUrl: null });
+            }}
+          />
+          Include image with question (optional)
+        </label>
+        {includeImage && (
+          <div className="space-y-2">
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => onImageFile(e.target.files?.[0] ?? null)}
+            />
+            <Button type="button" variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
+              Upload image
+            </Button>
+            {form.imageUrl && (
+              <img src={form.imageUrl} alt="Question" className="max-h-40 rounded-md border border-border object-contain" />
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="space-y-2">
         <Label>Explanation (optional)</Label>
         <Textarea value={form.explanation} onChange={(e) => onChange({ ...form, explanation: e.target.value })} rows={2} />
@@ -164,7 +214,7 @@ export function downloadCsvTemplate() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = "nexperts-questions-template.csv";
+  a.download = "questions-template.csv";
   a.click();
   URL.revokeObjectURL(url);
 }

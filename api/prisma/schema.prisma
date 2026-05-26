@@ -63,10 +63,11 @@ model User {
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
-  payments     Payment[]
-  attempts     ExamAttempt[]
-  certificates Certificate[]
-  violations   ProctoringViolation[]
+  payments            Payment[]
+  attempts            ExamAttempt[]
+  certificates        Certificate[]
+  violations          ProctoringViolation[]
+  voucherRedemptions  VoucherRedemption[]
 }
 
 model OtpCode {
@@ -119,26 +120,58 @@ model Question {
   difficulty    String
   topic         String
   tags          Json?
+  imageUrl      String?      @db.LongText
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
 
   exam Exam? @relation(fields: [examId], references: [id], onDelete: SetNull)
 }
 
+model VoucherBatch {
+  id             String   @id @default(cuid())
+  label          String?
+  discountType   String
+  discountAmount Decimal  @db.Decimal(10, 2)
+  expiry         DateTime
+  active         Boolean  @default(true)
+  quantity       Int
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  vouchers Voucher[]
+}
+
 model Voucher {
   id             String   @id @default(cuid())
+  batchId        String?
   code           String   @unique
   discountType   String
   discountAmount Decimal  @db.Decimal(10, 2)
-  usageLimit     Int
+  usageLimit     Int      @default(1)
   usedCount      Int      @default(0)
   expiry         DateTime
   active         Boolean  @default(true)
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  exams    VoucherExam[]
-  payments Payment[]
+  batch        VoucherBatch?       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  exams        VoucherExam[]
+  payments     Payment[]
+  redemptions  VoucherRedemption[]
+}
+
+model VoucherRedemption {
+  id        String   @id @default(cuid())
+  voucherId String
+  userId    String
+  paymentId String?  @unique
+  createdAt DateTime @default(now())
+
+  voucher Voucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([voucherId, userId])
+  @@index([userId])
 }
 
 model VoucherExam {
@@ -162,6 +195,8 @@ model Payment {
   stripeSessionId   String?
   scheduledStartAt  DateTime?
   scheduledEndAt    DateTime?
+  attendByAt        DateTime?
+  rescheduleCount   Int           @default(0)
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
 

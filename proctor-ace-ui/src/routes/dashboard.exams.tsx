@@ -56,6 +56,7 @@ function AvailableExams() {
   const [loading, setLoading] = useState(false);
   const [scheduleDateStr, setScheduleDateStr] = useState("");
   const [minDate, setMinDate] = useState<string>("");
+  const [maxDate, setMaxDate] = useState<string>("");
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<ScheduleSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -103,13 +104,14 @@ function AvailableExams() {
       return;
     }
     setLoadingSlots(true);
-    apiAuth<{ slots: ScheduleSlot[]; minDate: string }>(
+    apiAuth<{ slots: ScheduleSlot[]; minDate: string; maxDate: string }>(
       `/api/payments/schedule-slots?examId=${active.id}&date=${dateStr}`,
     )
       .then((d) => {
         setMinDate(d.minDate);
+        setMaxDate(d.maxDate);
         setSlots(d.slots);
-        setSelectedSlot(null);
+        setSelectedSlot(d.slots[0] ?? null);
       })
       .catch(() => {
         setSlots([]);
@@ -122,14 +124,24 @@ function AvailableExams() {
     setActive(e);
     setDiscount(0);
     setVoucher("");
-    setScheduleDateStr("");
     setSlots([]);
     setSelectedSlot(null);
-    void apiAuth<{ minDate: string }>(
-      `/api/payments/schedule-slots?examId=${e.id}&date=${new Date().toISOString().slice(0, 10)}`,
+    const today = new Date().toISOString().slice(0, 10);
+    setScheduleDateStr(today);
+    void apiAuth<{ minDate: string; maxDate: string; slots: ScheduleSlot[] }>(
+      `/api/payments/schedule-slots?examId=${e.id}&date=${today}`,
     )
-      .then((d) => setMinDate(d.minDate))
-      .catch(() => setMinDate(""));
+      .then((d) => {
+        setMinDate(d.minDate);
+        setMaxDate(d.maxDate);
+        setScheduleDateStr(d.minDate);
+        setSlots(d.slots);
+        setSelectedSlot(d.slots[0] ?? null);
+      })
+      .catch(() => {
+        setMinDate("");
+        setMaxDate("");
+      });
   };
 
   const applyVoucher = async () => {
@@ -288,7 +300,7 @@ function AvailableExams() {
           <DialogHeader>
             <DialogTitle>Schedule & pay</DialogTitle>
             <DialogDescription>
-              Pick your exam date (from tomorrow) and a start time between 10:00 AM and 6:00 PM (MYT). End time is based on exam duration.
+              Pick your exam date (today through one year ahead) and the next available start time between 10:00 AM and 6:00 PM (MYT).
             </DialogDescription>
           </DialogHeader>
           {active && (
@@ -311,12 +323,15 @@ function AvailableExams() {
                   <Input
                     type="date"
                     min={minDate || undefined}
+                    max={maxDate || undefined}
                     value={scheduleDateStr}
                     onChange={(e) => setScheduleDateStr(e.target.value)}
                     className="rounded-xl"
                   />
-                  {minDate && (
-                    <p className="text-[10px] text-muted-foreground">Earliest date: {minDate} (Malaysia time)</p>
+                  {minDate && maxDate && (
+                    <p className="text-[10px] text-muted-foreground">
+                      Book between {minDate} and {maxDate} (MYT). Attend within one year of purchase.
+                    </p>
                   )}
                 </div>
                 <div className="space-y-2">
@@ -362,7 +377,7 @@ function AvailableExams() {
                 <div className="flex gap-2">
                   <div className="relative flex-1">
                     <Tag className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input value={voucher} onChange={(e) => setVoucher(e.target.value)} placeholder="NEXPERTS25" className="pl-9 uppercase" />
+                    <Input value={voucher} onChange={(e) => setVoucher(e.target.value)} placeholder="VOUCHER-CODE" className="pl-9 uppercase" />
                   </div>
                   <Button variant="outline" onClick={applyVoucher}>Apply</Button>
                 </div>

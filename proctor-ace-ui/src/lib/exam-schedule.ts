@@ -13,6 +13,7 @@ export type SchedulePhase =
   | "ready"
   | "in_progress"
   | "expired"
+  | "booking_expired"
   | "completed";
 
 export function formatCountdown(ms: number): string {

@@ -16,7 +16,7 @@ export const Route = createFileRoute("/payment-success")({
     invoice: (s.invoice as string) ?? "",
   }),
   component: PaymentSuccess,
-  head: () => ({ meta: [{ title: "Payment successful — NExperts" }] }),
+  head: () => ({ meta: [{ title: "Payment successful — Certification Portal" }] }),
 });
 
 function PaymentSuccess() {

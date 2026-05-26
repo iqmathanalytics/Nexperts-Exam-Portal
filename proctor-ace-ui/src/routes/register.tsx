@@ -4,22 +4,38 @@ import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { AuthLayout } from "@/components/auth-layout";
 import { api, ApiError } from "@/lib/api-client";
+import { BRAND } from "@/lib/branding";
+import { COUNTRY_DIAL_CODES, formatPhoneWithDial } from "@/lib/country-codes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export const Route = createFileRoute("/register")({
   component: Register,
-  head: () => ({ meta: [{ title: "Create your account — NExperts" }] }),
+  head: () => ({ meta: [{ title: `Create your account — ${BRAND.name}` }] }),
 });
 
 function Register() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
+  const [countryCode, setCountryCode] = useState("MY");
   const [form, setForm] = useState({
-    fullName: "", email: "", phone: "", icPassport: "", degree: "", dob: "", password: "",
+    fullName: "",
+    email: "",
+    phoneLocal: "",
+    icPassport: "",
+    password: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const dial = COUNTRY_DIAL_CODES.find((c) => c.code === countryCode)?.dial ?? "+60";
 
   const update = (k: string, v: string) => setForm({ ...form, [k]: v });
 
@@ -28,7 +44,7 @@ function Register() {
     const next: Record<string, string> = {};
     if (!form.fullName) next.fullName = "Required";
     if (!/^\S+@\S+\.\S+$/.test(form.email)) next.email = "Valid email required";
-    if (form.phone.length < 6) next.phone = "Required";
+    if (form.phoneLocal.replace(/\D/g, "").length < 6) next.phoneLocal = "Required";
     if (!form.icPassport) next.icPassport = "Required";
     if (!form.password || form.password.length < 6) next.password = "Min 6 characters";
     setErrors(next);
@@ -41,10 +57,8 @@ function Register() {
         body: JSON.stringify({
           fullName: form.fullName,
           email: form.email,
-          phone: form.phone,
+          phone: formatPhoneWithDial(dial, form.phoneLocal),
           icPassport: form.icPassport,
-          degree: form.degree || undefined,
-          dob: form.dob || undefined,
           password: form.password,
         }),
       });
@@ -61,44 +75,77 @@ function Register() {
     <AuthLayout
       side="left"
       highlight={{
-        title: "Create your NExperts candidate account",
+        title: `Create your ${BRAND.name} account`,
         sub: "Secure registration with email OTP verification.",
-        bullets: ["AI-proctored certification access", "Verifiable digital credentials", "Track results, payments and certificates"],
+        bullets: [
+          "AI-proctored certification access",
+          "Verifiable digital credentials",
+          "Track results, payments and certificates",
+        ],
       }}
     >
       <div className="space-y-2">
         <h1 className="font-display text-3xl font-bold tracking-tight">Create account</h1>
         <p className="text-sm text-muted-foreground">
           Already registered?{" "}
-          <Link to="/login" className="font-medium text-accent hover:underline">Sign in</Link>
+          <Link to="/login" className="font-medium text-accent hover:underline">
+            Sign in
+          </Link>
         </p>
       </div>
 
       <form onSubmit={submit} className="mt-8 space-y-4">
         <Field label="Full name" error={errors.fullName}>
-          <Input value={form.fullName} onChange={(e) => update("fullName", e.target.value)} placeholder="Aarav Sharma" />
+          <Input
+            value={form.fullName}
+            onChange={(e) => update("fullName", e.target.value)}
+            placeholder="Aarav Sharma"
+          />
         </Field>
         <Field label="Email" error={errors.email}>
-          <Input type="email" value={form.email} onChange={(e) => update("email", e.target.value)} placeholder="you@company.com" />
+          <Input
+            type="email"
+            value={form.email}
+            onChange={(e) => update("email", e.target.value)}
+            placeholder="you@company.com"
+          />
         </Field>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Phone" error={errors.phone}>
-            <Input value={form.phone} onChange={(e) => update("phone", e.target.value)} placeholder="+60 12-345 6789" />
-          </Field>
-          <Field label="IC / Passport" error={errors.icPassport}>
-            <Input value={form.icPassport} onChange={(e) => update("icPassport", e.target.value)} placeholder="901234-10-5678" />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Degree">
-            <Input value={form.degree} onChange={(e) => update("degree", e.target.value)} placeholder="B.Tech, CS" />
-          </Field>
-          <Field label="Date of birth">
-            <Input type="date" value={form.dob} onChange={(e) => update("dob", e.target.value)} />
-          </Field>
-        </div>
+        <Field label="Phone" error={errors.phoneLocal}>
+          <div className="flex gap-2">
+            <Select value={countryCode} onValueChange={setCountryCode}>
+              <SelectTrigger className="w-[130px] shrink-0">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRY_DIAL_CODES.map((c) => (
+                  <SelectItem key={c.code} value={c.code}>
+                    {c.dial} {c.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              className="flex-1"
+              value={form.phoneLocal}
+              onChange={(e) => update("phoneLocal", e.target.value)}
+              placeholder="12-345 6789"
+            />
+          </div>
+        </Field>
+        <Field label="IC / Passport" error={errors.icPassport}>
+          <Input
+            value={form.icPassport}
+            onChange={(e) => update("icPassport", e.target.value)}
+            placeholder="901234-10-5678"
+          />
+        </Field>
         <Field label="Password" error={errors.password} hint="For future use">
-          <Input type="password" value={form.password} onChange={(e) => update("password", e.target.value)} placeholder="••••••••" />
+          <Input
+            type="password"
+            value={form.password}
+            onChange={(e) => update("password", e.target.value)}
+            placeholder="••••••••"
+          />
         </Field>
 
         <Button type="submit" disabled={loading} className="w-full bg-gradient-emerald text-white shadow-glow">
@@ -106,14 +153,25 @@ function Register() {
           Send OTP
         </Button>
         <p className="text-center text-xs text-muted-foreground">
-          By continuing you agree to our <a href="#" className="underline">Terms</a> and <a href="#" className="underline">Privacy</a>.
+          By continuing you agree to our <a href="#" className="underline">Terms</a> and{" "}
+          <a href="#" className="underline">Privacy</a>.
         </p>
       </form>
     </AuthLayout>
   );
 }
 
-function Field({ label, error, hint, children }: { label: string; error?: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  error,
+  hint,
+  children,
+}: {
+  label: string;
+  error?: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">

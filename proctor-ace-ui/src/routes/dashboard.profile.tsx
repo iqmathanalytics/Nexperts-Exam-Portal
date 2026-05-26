@@ -17,8 +17,6 @@ type ProfileForm = {
   email: string;
   phone: string;
   icPassport: string;
-  degree: string;
-  dob: string;
   joined: string;
 };
 
@@ -32,7 +30,7 @@ function Profile() {
   usePageDataLoad(
     "profile",
     async () => {
-      const d = await apiAuth<{ user: { fullName: string; email: string; phone: string | null; icPassport: string | null; degree: string | null; dob: Date | null; createdAt: string } }>(
+      const d = await apiAuth<{ user: { fullName: string; email: string; phone: string | null; icPassport: string | null; createdAt: string } }>(
         "/api/auth/me",
       );
       const u = d.user;
@@ -41,8 +39,6 @@ function Profile() {
         email: u.email,
         phone: u.phone ?? "",
         icPassport: u.icPassport ?? "",
-        degree: u.degree ?? "",
-        dob: u.dob ? new Date(u.dob).toISOString().slice(0, 10) : "",
         joined: u.createdAt,
       });
     },
@@ -61,8 +57,6 @@ function Profile() {
           fullName: form.name,
           phone: form.phone,
           icPassport: form.icPassport,
-          degree: form.degree,
-          dob: form.dob || undefined,
         }),
       });
       toast.success("Profile saved");
@@ -111,8 +105,6 @@ function Profile() {
               <Field label="Email" v={form.email} onChange={() => {}} disabled />
               <Field label="Phone" v={form.phone} onChange={(v) => update("phone", v)} />
               <Field label="IC / Passport" v={form.icPassport} onChange={(v) => update("icPassport", v)} />
-              <Field label="Degree" v={form.degree} onChange={(v) => update("degree", v)} />
-              <Field label="Date of birth" v={form.dob} onChange={(v) => update("dob", v)} type="date" />
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <Button onClick={save} className="bg-gradient-emerald text-white">

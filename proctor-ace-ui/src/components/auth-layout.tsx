@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { BRAND } from "@/lib/branding";
 
 export function AuthLayout({
   side = "right",
@@ -17,7 +18,7 @@ export function AuthLayout({
       <div className="absolute inset-0 grid-bg opacity-50" />
       <div className="absolute -bottom-32 -left-20 h-[400px] w-[400px] rounded-full bg-accent/30 blur-3xl" />
 
-      <BrandLogo to="/" className="relative" imgClassName="h-10" />
+      <BrandLogo to="/" className="relative" />
 
       <div className="relative">
         <h2 className="font-display text-4xl font-bold leading-tight text-balance">{highlight.title}</h2>
@@ -32,7 +33,7 @@ export function AuthLayout({
         </ul>
       </div>
 
-      <p className="relative text-xs text-white/40">© {new Date().getFullYear()} NExperts Certification Portal</p>
+      <p className="relative text-xs text-white/40">© {new Date().getFullYear()} {BRAND.copyright}</p>
     </div>
   );
 

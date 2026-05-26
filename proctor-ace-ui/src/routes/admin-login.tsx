@@ -17,7 +17,7 @@ export const Route = createFileRoute("/admin-login")({
     if (auth?.role === "candidate") throw redirect({ to: "/dashboard" });
   },
   component: AdminLogin,
-  head: () => ({ meta: [{ title: "Admin Portal — NExperts" }] }),
+  head: () => ({ meta: [{ title: "Admin Portal — Certification Portal" }] }),
 });
 
 function AdminLogin() {

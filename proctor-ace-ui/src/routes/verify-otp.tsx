@@ -10,7 +10,7 @@ import { setAuth, mapApiRole } from "@/lib/auth";
 export const Route = createFileRoute("/verify-otp")({
   component: VerifyOTP,
   validateSearch: (s: Record<string, unknown>) => ({ email: (s.email as string) ?? "your email" }),
-  head: () => ({ meta: [{ title: "Verify OTP — NExperts" }] }),
+  head: () => ({ meta: [{ title: "Verify OTP — Certification Portal" }] }),
 });
 
 function VerifyOTP() {
@@ -58,7 +58,7 @@ function VerifyOTP() {
         userId: res.user.id,
         fullName: res.user.fullName,
       });
-      toast.success("Email verified! Welcome to NExperts.");
+      toast.success("Email verified! Welcome to Certification Portal.");
       navigate({ to: "/dashboard" });
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Invalid OTP");

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { api } from "@/lib/api-client";
 import { getAuth, type AuthSession } from "@/lib/auth";
+import { BRAND } from "@/lib/branding";
 
 export const Route = createFileRoute("/")({
   component: Landing,
@@ -62,7 +63,7 @@ function Hero({ auth }: { auth: AuthSession | null }) {
               , globally.
             </h1>
             <p className="mt-6 max-w-xl text-lg text-white/70 text-balance">
-              NExperts is the secure exam management platform powering AI-proctored certifications,
+              {BRAND.name} is the secure exam management platform powering AI-proctored certifications,
               instant results, and verifiable credentials for the next generation of professionals.
             </p>
             <div className="mt-8 flex flex-wrap gap-3">
@@ -207,7 +208,7 @@ function Features() {
         <SectionHeading
           eyebrow="Platform"
           title="Built for the next era of certification"
-          sub="Every layer of NExperts is engineered for trust — from candidate identity verification to credential issuance."
+          sub={`Every layer of ${BRAND.name} is engineered for trust — from candidate identity verification to credential issuance.`}
         />
         <div className="mt-14 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
           {items.map(({ i: Icon, t, d }) => (
@@ -418,7 +419,7 @@ function Testimonials() {
   const items = [
     { n: "Priya Menon", r: "ML Engineer, Bengaluru", q: "The proctoring was seamless and the certificate has genuine recognition in interviews." },
     { n: "Daniel Okoro", r: "Cloud Consultant, Lagos", q: "Honestly the smoothest enterprise exam experience I've had. Result was instant." },
-    { n: "Sofia Marín", r: "Security Analyst, Madrid", q: "NExperts feels like the AWS of certifications — polished, secure, and trusted." },
+    { n: "Sofia Marín", r: "Security Analyst, Madrid", q: `${BRAND.name} feels like the AWS of certifications — polished, secure, and trusted.` },
   ];
   return (
     <section className="bg-gradient-hero py-24 text-white">
@@ -453,7 +454,7 @@ function FAQ() {
   const items = [
     { q: "How does AI proctoring work?", a: "Our system combines computer vision, audio analysis, and behavior tracking to monitor exam sessions in real time. Anomalies are flagged for human moderator review." },
     { q: "Can I retake an exam?", a: "Each exam includes 2–3 attempts depending on the certification. Vouchers may grant additional attempts." },
-    { q: "Are NExperts certificates recognised?", a: "Yes — our credentials follow Open Badges 2.0 standards and include public verification URLs and QR codes." },
+    { q: `Are ${BRAND.name} certificates recognised?`, a: "Yes — our credentials follow Open Badges 2.0 standards and include public verification URLs and QR codes." },
     { q: "What hardware do I need?", a: "A laptop or desktop with a working webcam, microphone, stable internet, and a supported modern browser." },
     { q: "Do you support vouchers and group purchases?", a: "Absolutely. Voucher codes can be applied at checkout, and enterprise plans support bulk purchases." },
   ];
@@ -488,7 +489,7 @@ function CTA({ auth }: { auth: AuthSession | null }) {
         <div className="grid items-center gap-8 md:grid-cols-[1fr_auto]">
           <div>
             <h3 className="font-display text-3xl font-bold md:text-4xl">Ready to certify your expertise?</h3>
-            <p className="mt-2 text-white/85">Join 120,000+ professionals already credentialed on NExperts.</p>
+            <p className="mt-2 text-white/85">Join 120,000+ professionals already credentialed on {BRAND.name}.</p>
           </div>
           <div className="flex gap-3">
             <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90">

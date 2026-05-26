@@ -18,7 +18,7 @@ export const Route = createFileRoute("/exam-complete")({
     credentialId: String(s.credentialId ?? ""),
   }),
   component: ExamCompletePage,
-  head: () => ({ meta: [{ title: "Exam complete — NExperts" }] }),
+  head: () => ({ meta: [{ title: "Exam complete — Certification Portal" }] }),
 });
 
 function ExamCompletePage() {

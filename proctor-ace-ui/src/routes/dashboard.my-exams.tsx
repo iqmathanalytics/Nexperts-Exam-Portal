@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CalendarClock, ClipboardList, DoorOpen, PlayCircle } from "lucide-react";
+import { CalendarClock, ClipboardList, DoorOpen, PlayCircle, CalendarRange } from "lucide-react";
+import { RescheduleExamDialog } from "@/components/reschedule-exam-dialog";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/dashboard-bits";
 import { Button } from "@/components/ui/button";
@@ -51,13 +52,15 @@ function MyExams() {
   const [exams, setExams] = useState<PurchasedExam[]>([]);
   const [starting, setStarting] = useState<string | null>(null);
   const [prestartExam, setPrestartExam] = useState<PurchasedExam | null>(null);
+  const [rescheduleExam, setRescheduleExam] = useState<PurchasedExam | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
   usePageDataLoad(
     "my-exams",
     async () => {
       const d = await apiAuth<{ exams: PurchasedExam[] }>("/api/candidate/my-exams");
       setExams(d.exams);
     },
-    [],
+    [reloadKey],
   );
 
   useEffect(() => {
@@ -115,13 +118,6 @@ function MyExams() {
       };
     }
     switch (e.schedulePhase) {
-      case "too_early":
-        return {
-          label: "Scheduled",
-          disabled: true,
-          action: null,
-          hint: e.schedule?.scheduledLabel,
-        };
       case "waiting":
         return {
           label: "Join waiting room",
@@ -137,7 +133,22 @@ function MyExams() {
           action: () => setPrestartExam(e),
         };
       case "expired":
-        return { label: "Window ended", disabled: true, action: null };
+      case "booking_expired":
+        return {
+          label: e.schedulePhase === "booking_expired" ? "Booking expired" : "Reschedule",
+          disabled: e.schedulePhase === "booking_expired",
+          action:
+            e.schedulePhase === "booking_expired"
+              ? null
+              : () => setRescheduleExam(e),
+        };
+      case "too_early":
+        return {
+          label: "Scheduled",
+          disabled: true,
+          action: null,
+          hint: e.schedule?.scheduledLabel,
+        };
       default:
         return { label: "Start Exam", disabled: false, action: () => setPrestartExam(e) };
     }
@@ -146,6 +157,16 @@ function MyExams() {
   return (
     <>
       <PageHeader title="My Exams" sub="Track your scheduled exams, attempts, and results." />
+
+      <RescheduleExamDialog
+        open={!!rescheduleExam}
+        onOpenChange={(o) => !o && setRescheduleExam(null)}
+        paymentId={rescheduleExam?.paymentId ?? ""}
+        examId={rescheduleExam?.id ?? ""}
+        examTitle={rescheduleExam?.title ?? ""}
+        duration={rescheduleExam?.duration ?? 60}
+        onRescheduled={() => setReloadKey((k) => k + 1)}
+      />
 
       <ExamPrestartDialog
         open={!!prestartExam}
@@ -202,19 +223,31 @@ function MyExams() {
                       {remaining} of {e.attempts} attempts left
                     </div>
                     <Progress value={(e.used / e.attempts) * 100} className="h-2 w-32" />
-                    <Button
-                      size="sm"
-                      disabled={act.disabled || starting === e.id}
-                      className="bg-gradient-emerald text-white"
-                      onClick={() => act.action?.()}
-                    >
-                      {e.schedulePhase === "waiting" ? (
-                        <DoorOpen className="mr-2 h-4 w-4" />
-                      ) : (
-                        <PlayCircle className="mr-2 h-4 w-4" />
+                    <div className="flex gap-2">
+                      {(e.schedulePhase === "expired" || e.schedulePhase === "too_early") && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setRescheduleExam(e)}
+                        >
+                          <CalendarRange className="mr-2 h-4 w-4" />
+                          Reschedule
+                        </Button>
                       )}
-                      {starting === e.id ? "Starting…" : act.label}
-                    </Button>
+                      <Button
+                        size="sm"
+                        disabled={act.disabled || starting === e.id}
+                        className="bg-gradient-emerald text-white"
+                        onClick={() => act.action?.()}
+                      >
+                        {e.schedulePhase === "waiting" ? (
+                          <DoorOpen className="mr-2 h-4 w-4" />
+                        ) : (
+                          <PlayCircle className="mr-2 h-4 w-4" />
+                        )}
+                        {starting === e.id ? "Starting…" : act.label}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>

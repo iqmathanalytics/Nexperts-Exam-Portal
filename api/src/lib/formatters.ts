@@ -59,5 +59,6 @@ export function formatQuestion(q: Question) {
     difficulty: q.difficulty,
     topic: q.topic,
     tags: (q.tags as string[]) ?? [],
+    imageUrl: q.imageUrl ?? null,
   };
 }

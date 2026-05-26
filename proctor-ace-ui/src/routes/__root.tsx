@@ -10,15 +10,16 @@ import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import appCss from "../styles.css?url";
+import { BRAND } from "@/lib/branding";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "NExperts Certification Portal — AI-Proctored Certifications" },
-      { name: "description", content: "Secure enterprise-grade exam management and AI-proctored certification platform for professionals." },
-      { property: "og:title", content: "NExperts Certification Portal" },
+      { title: `${BRAND.name} — AI-Proctored Certifications` },
+      { name: "description", content: "Secure exam management and AI-proctored certification platform for professionals." },
+      { property: "og:title", content: BRAND.name },
       { property: "og:description", content: "AI-proctored certifications, instant results, verifiable credentials." },
       { property: "og:type", content: "website" },
     ],

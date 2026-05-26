@@ -16,8 +16,6 @@ const registerSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(6),
   icPassport: z.string().min(4),
-  degree: z.string().optional(),
-  dob: z.string().optional(),
   password: z.string().min(6).optional(),
 });
 
@@ -63,8 +61,6 @@ router.post("/register", async (req, res) => {
         fullName: data.fullName,
         phone: data.phone,
         icPassport: data.icPassport,
-        degree: data.degree,
-        dob: data.dob ? new Date(data.dob) : null,
         passwordHash,
         role: Role.CANDIDATE,
         emailVerified: false,
@@ -73,8 +69,6 @@ router.post("/register", async (req, res) => {
         fullName: data.fullName,
         phone: data.phone,
         icPassport: data.icPassport,
-        degree: data.degree,
-        dob: data.dob ? new Date(data.dob) : null,
         passwordHash,
       },
     });

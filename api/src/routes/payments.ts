@@ -11,8 +11,10 @@ import { env } from "../lib/env.js";
 import {
   generateSlotsForDate,
   minBookableDateString,
+  maxBookableDateString,
   validateScheduledSlot,
   formatScheduleForApi,
+  attendByFromPurchase,
 } from "../services/exam-scheduling.js";
 
 const router = Router();
@@ -36,6 +38,7 @@ router.get("/schedule-slots", requireAuth(Role.CANDIDATE), async (req: AuthedReq
     res.json({
       date,
       minDate: minBookableDateString(),
+      maxDate: maxBookableDateString(),
       duration: exam.duration,
       timezone: "Asia/Kuala_Lumpur",
       slots,
@@ -51,7 +54,7 @@ router.post("/validate-voucher", requireAuth(Role.CANDIDATE), async (req: Authed
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
     if (!exam) return res.status(404).json({ error: "Exam not found" });
     const subtotal = Number(exam.price);
-    const result = await validateVoucher(code, examId, subtotal);
+    const result = await validateVoucher(code, examId, subtotal, req.user!.sub);
     if (!result.valid) return res.json({ valid: false, discount: 0 });
     res.json({ valid: true, discount: result.discount, total: subtotal - result.discount });
   } catch {
@@ -100,7 +103,7 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
     let subtotal = Number(exam.price);
     let voucherId: string | undefined;
     if (voucherCode) {
-      const v = await validateVoucher(voucherCode, examId, subtotal);
+      const v = await validateVoucher(voucherCode, examId, subtotal, userId);
       if (!v.valid) return res.status(400).json({ error: "Invalid voucher" });
       subtotal -= v.discount;
       voucherId = v.voucherId;
@@ -313,6 +316,63 @@ router.post("/:id/resume", requireAuth(Role.CANDIDATE), async (req: AuthedReques
   } catch (e) {
     console.error("Resume payment error:", e);
     res.status(500).json({ error: "Could not resume payment" });
+  }
+});
+
+router.post("/reschedule", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
+  try {
+    const { paymentId, scheduledDate, scheduledStartTime } = z
+      .object({
+        paymentId: z.string(),
+        scheduledDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        scheduledStartTime: z.string().regex(/^\d{1,2}:\d{2}$/),
+      })
+      .parse(req.body);
+
+    const userId = req.user!.sub;
+    const payment = await prisma.payment.findFirst({
+      where: { id: paymentId, userId, status: PaymentStatus.PAID },
+      include: { exam: true },
+    });
+    if (!payment) return res.status(404).json({ error: "Paid exam booking not found" });
+
+    const inProgress = await prisma.examAttempt.findFirst({
+      where: { userId, examId: payment.examId, result: "IN_PROGRESS" },
+    });
+    if (inProgress) {
+      return res.status(409).json({ error: "Finish or cancel your in-progress attempt before rescheduling" });
+    }
+
+    const attendBy = payment.attendByAt ?? attendByFromPurchase(payment.createdAt);
+    if (new Date() > attendBy) {
+      return res.status(403).json({ error: "Your one-year booking window has expired" });
+    }
+
+    const [hh, mm] = scheduledStartTime.split(":").map(Number);
+    const timeNorm = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
+    const schedule = validateScheduledSlot(scheduledDate, timeNorm, payment.exam.duration);
+    if (schedule.startAt > attendBy) {
+      return res.status(400).json({ error: "New slot must be within your one-year booking window" });
+    }
+
+    const updated = await prisma.payment.update({
+      where: { id: payment.id },
+      data: {
+        scheduledStartAt: schedule.startAt,
+        scheduledEndAt: schedule.endAt,
+        rescheduleCount: { increment: 1 },
+      },
+    });
+
+    res.json({
+      ok: true,
+      rescheduleCount: updated.rescheduleCount,
+      ...formatScheduleForApi(updated.scheduledStartAt!, updated.scheduledEndAt!),
+      attendByAt: attendBy.toISOString(),
+    });
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.flatten() });
+    return res.status(400).json({ error: e instanceof Error ? e.message : "Reschedule failed" });
   }
 });
 

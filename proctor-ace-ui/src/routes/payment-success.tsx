@@ -86,6 +86,9 @@ function PaymentSuccess() {
           <p className="mt-2 font-mono text-xs text-muted-foreground">Invoice {details.invoice}</p>
         )}
         <p className="mt-1 text-xs text-muted-foreground">Paid via Stripe</p>
+        <p className="mt-3 text-xs text-muted-foreground">
+          A PDF invoice has been sent to your email. You can also download it from Payments &amp; Invoices.
+        </p>
         <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">
           <Button asChild className="bg-gradient-emerald text-white">
             <Link to="/dashboard/my-exams">View my exams <ArrowRight className="ml-2 h-4 w-4" /></Link>

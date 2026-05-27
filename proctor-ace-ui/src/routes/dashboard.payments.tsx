@@ -1,13 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Receipt, CreditCard } from "lucide-react";
+import { Download, Receipt } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/dashboard-bits";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { apiAuth } from "@/lib/api-auth";
+import { InvoicePreview, type InvoicePreviewData } from "@/components/invoice-preview";
+import { apiAuth, downloadAuthPdf } from "@/lib/api-auth";
 import { ApiError } from "@/lib/api-client";
 import { usePageDataLoad } from "@/contexts/page-load-context";
 
@@ -28,9 +29,46 @@ type PaymentRow = {
 };
 
 function Payments() {
-  const [view, setView] = useState<PaymentRow | null>(null);
+  const [viewId, setViewId] = useState<string | null>(null);
+  const [invoicePreview, setInvoicePreview] = useState<InvoicePreviewData | null>(null);
+  const [invoiceLoading, setInvoiceLoading] = useState(false);
   const [payments, setPayments] = useState<PaymentRow[]>([]);
+  const [downloading, setDownloading] = useState<string | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
+
+  const viewPayment = payments.find((p) => p.id === viewId) ?? null;
+
+  const openInvoice = async (paymentId: string) => {
+    setViewId(paymentId);
+    setInvoicePreview(null);
+    setInvoiceLoading(true);
+    try {
+      const d = await apiAuth<{ invoice: InvoicePreviewData }>(`/api/payments/${paymentId}/invoice`);
+      setInvoicePreview(d.invoice);
+    } catch {
+      toast.error("Could not load invoice");
+      setViewId(null);
+    } finally {
+      setInvoiceLoading(false);
+    }
+  };
+
+  const closeInvoice = () => {
+    setViewId(null);
+    setInvoicePreview(null);
+  };
+
+  const downloadInvoice = async (paymentId: string, filename: string) => {
+    setDownloading(paymentId);
+    try {
+      await downloadAuthPdf(`/api/payments/${paymentId}/invoice.pdf`, `${filename}.pdf`);
+      toast.success("Invoice downloaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not download invoice");
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   usePageDataLoad(
     "payments",
@@ -122,9 +160,21 @@ function Payments() {
                         {resuming === p.id ? "Opening…" : "Resume payment"}
                       </Button>
                     ) : (
-                      <Button variant="ghost" size="sm" onClick={() => setView(p)}>
-                        <Receipt className="mr-1 h-3.5 w-3.5" /> View
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openInvoice(p.id)}>
+                          <Receipt className="mr-1 h-3.5 w-3.5" /> View
+                        </Button>
+                        {p.status === "PAID" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={downloading === p.id}
+                            onClick={() => downloadInvoice(p.id, p.invoice)}
+                          >
+                            {downloading === p.id ? "…" : "PDF"}
+                          </Button>
+                        )}
+                      </div>
                     )}
                   </TableCell>
                 </TableRow>
@@ -134,32 +184,30 @@ function Payments() {
         </Table>
       </div>
 
-      <Dialog open={!!view} onOpenChange={(o) => !o && setView(null)}>
-        <DialogContent className="max-w-md">
+      <Dialog open={!!viewId} onOpenChange={(o) => !o && closeInvoice()}>
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Invoice {view?.invoice}</DialogTitle>
+            <DialogTitle>
+              Invoice {invoicePreview?.invoiceId ?? viewPayment?.invoice ?? ""}
+            </DialogTitle>
           </DialogHeader>
-          {view && (
+          {invoiceLoading ? (
+            <p className="py-12 text-center text-sm text-muted-foreground">Loading invoice…</p>
+          ) : invoicePreview ? (
             <div className="space-y-4">
-              <div className="rounded-xl bg-gradient-hero p-5 text-white">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs uppercase tracking-wider text-white/60">NExperts Academy</span>
-                  <CreditCard className="h-4 w-4 text-accent" />
-                </div>
-                <div className="mt-6 font-mono text-lg tracking-widest">{view.invoice}</div>
-                <div className="mt-1 text-xs text-white/60">Paid on {view.date}</div>
-              </div>
-
-              <div className="space-y-2 rounded-xl border border-border p-4 text-sm">
-                <Row k="Item" v={view.examTitle} />
-                <Row k="Method" v={view.method} />
-                <Row k="Status" v={view.status} />
-                {view.voucher && <Row k="Voucher" v={view.voucher} />}
-                <div className="my-1 h-px bg-border" />
-                <Row k="Total" v={`MYR ${view.amount}`} bold />
-              </div>
+              <InvoicePreview data={invoicePreview} />
+              {invoicePreview.status === "PAID" && viewId && (
+                <Button
+                  className="w-full bg-gradient-emerald text-white"
+                  disabled={downloading === viewId}
+                  onClick={() => downloadInvoice(viewId, invoicePreview.invoiceId)}
+                >
+                  <Download className="mr-2 h-4 w-4" />
+                  {downloading === viewId ? "Downloading…" : "Download PDF invoice"}
+                </Button>
+              )}
             </div>
-          )}
+          ) : null}
         </DialogContent>
       </Dialog>
     </>
@@ -172,15 +220,6 @@ function Summary({ k, v, l }: { k: string; v: string; l: string }) {
       <div className="text-xs uppercase tracking-wider text-muted-foreground">{k}</div>
       <div className="mt-2 font-display text-2xl font-bold">{v}</div>
       <div className="text-xs text-muted-foreground">{l}</div>
-    </div>
-  );
-}
-
-function Row({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
-  return (
-    <div className={`flex justify-between ${bold ? "font-display text-base font-bold" : ""}`}>
-      <span className={bold ? "" : "text-muted-foreground"}>{k}</span>
-      <span>{v}</span>
     </div>
   );
 }

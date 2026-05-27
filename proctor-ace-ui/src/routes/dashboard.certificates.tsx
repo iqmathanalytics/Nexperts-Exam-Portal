@@ -4,8 +4,8 @@ import { Award, Download, Share2, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, EmptyState } from "@/components/dashboard-bits";
 import { Button } from "@/components/ui/button";
-import { apiAuth } from "@/lib/api-auth";
-import { getAuth } from "@/lib/auth";
+import { apiAuth, downloadAuthPdf } from "@/lib/api-auth";
+import { formatCertificateDate } from "@/lib/certificate-utils";
 import { usePageDataLoad } from "@/contexts/page-load-context";
 
 export const Route = createFileRoute("/dashboard/certificates")({
@@ -15,6 +15,8 @@ export const Route = createFileRoute("/dashboard/certificates")({
 type Cert = {
   id: string;
   examTitle: string;
+  examDescription?: string;
+  recipientName: string;
   issuedOn: string;
   score: number;
   credentialId: string;
@@ -23,7 +25,7 @@ type Cert = {
 
 function Certificates() {
   const [certs, setCerts] = useState<Cert[]>([]);
-  const userName = getAuth()?.fullName ?? "Candidate";
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   usePageDataLoad(
     "certificates",
@@ -49,6 +51,21 @@ function Certificates() {
     }
   };
 
+  const downloadCert = async (c: Cert) => {
+    setDownloading(c.id);
+    try {
+      await downloadAuthPdf(
+        `/api/candidate/certificates/${c.id}/download`,
+        `certificate-${c.credentialId}.pdf`,
+      );
+      toast.success("Certificate downloaded");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not download certificate");
+    } finally {
+      setDownloading(null);
+    }
+  };
+
   return (
     <>
       <PageHeader title="Certificates" sub="Download and share your verified credentials." />
@@ -71,7 +88,7 @@ function Certificates() {
                   <h3 className="mt-2 font-display text-2xl font-bold leading-tight">{c.examTitle}</h3>
                   <div className="mt-6">
                     <div className="text-[10px] uppercase tracking-wider text-white/50">Awarded to</div>
-                    <div className="font-display text-xl">{userName}</div>
+                    <div className="font-display text-xl">{c.recipientName}</div>
                   </div>
                   <div className="mt-6 flex items-end justify-between">
                     <div>
@@ -80,7 +97,7 @@ function Certificates() {
                     </div>
                     <div className="text-right">
                       <div className="text-[10px] uppercase tracking-wider text-white/50">Issued</div>
-                      <div className="text-sm">{c.issuedOn}</div>
+                      <div className="text-sm">{formatCertificateDate(c.issuedOn)}</div>
                     </div>
                   </div>
                 </div>
@@ -91,8 +108,13 @@ function Certificates() {
                   <span className="font-mono">{c.credentialId}</span>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <Button className="flex-1 bg-gradient-emerald text-white" onClick={() => toast.success("Certificate downloaded")}>
-                    <Download className="mr-2 h-4 w-4" /> Download
+                  <Button
+                    className="flex-1 bg-gradient-emerald text-white"
+                    disabled={downloading === c.id}
+                    onClick={() => downloadCert(c)}
+                  >
+                    <Download className="mr-2 h-4 w-4" />
+                    {downloading === c.id ? "Downloading…" : "Download PDF"}
                   </Button>
                   <Button variant="outline" asChild>
                     <a href={shareLink(c.credentialId)} target="_blank" rel="noopener noreferrer" title="Open share page">

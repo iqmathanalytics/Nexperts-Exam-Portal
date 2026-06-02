@@ -1,12 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Download, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin-bits";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 import { useAdminSearch } from "@/contexts/admin-search-context";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -30,23 +30,14 @@ export const Route = createFileRoute("/admin/certificates")({
 });
 
 function AdminCertificates() {
-  const [certs, setCerts] = useState<Cert[]>([]);
   const [filterExam, setFilterExam] = useState("all");
   const { query: searchStudent } = useAdminSearch();
-
-  const load = useCallback(async () => {
-    const d = await apiAuth<{ certificates: Cert[] }>("/api/admin/certificates");
-    setCerts(d.certificates);
-  }, []);
-
-  usePageDataLoad(
+  const invalidateSession = useInvalidateSession();
+  const { data: certs = [] } = usePageDataLoad(
     "admin-certificates",
     async () => {
-      try {
-        await load();
-      } catch {
-        toast.error("Failed to load certificates");
-      }
+      const d = await apiAuth<{ certificates: Cert[] }>("/api/admin/certificates");
+      return d.certificates;
     },
     [],
   );
@@ -74,7 +65,7 @@ function AdminCertificates() {
     try {
       const res = await apiAuth<{ credentialId: string }>(`/api/admin/certificates/${id}/regenerate`, { method: "POST" });
       toast.success(`Regenerated: ${res.credentialId}`);
-      load();
+      invalidateSession("admin-certificates");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Regenerate failed");
     }
@@ -93,13 +84,13 @@ function AdminCertificates() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Certificate management" sub="Download, regenerate, and manage issued credentials." />
+      <PageHeader title="Certificates" sub="Issue tracking, regeneration, and credential IDs." />
 
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-border bg-card p-4">
+      <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-2">
           <Label className="text-xs">Filter by exam</Label>
           <Select value={filterExam} onValueChange={setFilterExam}>
-            <SelectTrigger className="w-56"><SelectValue placeholder="All exams" /></SelectTrigger>
+            <SelectTrigger className="w-64"><SelectValue placeholder="All exams" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All exams</SelectItem>
               {examOptions.map((e) => (
@@ -108,40 +99,34 @@ function AdminCertificates() {
             </SelectContent>
           </Select>
         </div>
-        {searchStudent.trim() && (
-          <p className="text-sm text-muted-foreground self-center">
-            Header search: <span className="font-medium text-foreground">&quot;{searchStudent}&quot;</span>
-          </p>
-        )}
       </div>
 
-      {filtered.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
-          {certs.length === 0 ? "No certificates issued yet." : "No certificates match your filters."}
-        </p>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2">
-          {filtered.map((c) => (
-            <div key={c.id} className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-              <div className="rounded-xl bg-gradient-hero p-6 text-white">
-                <div className="text-xs uppercase tracking-wider opacity-80">NExperts Certified</div>
-                <div className="mt-2 font-display text-xl font-bold">{c.candidate}</div>
-                <div className="mt-1 text-sm opacity-90">{c.exam}</div>
-                <div className="mt-4 font-mono text-xs opacity-75">{c.credentialId}</div>
-                <div className="mt-2 text-sm">Score: {c.score}% · {c.issuedOn}</div>
-              </div>
-              <div className="mt-4 flex gap-2">
-                <Button variant="outline" size="sm" onClick={() => download(c)}>
-                  <Download className="mr-1 h-3 w-3" />Download
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => regenerate(c.id)}>
-                  <RefreshCw className="mr-1 h-3 w-3" />Regenerate
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40 text-left text-muted-foreground">
+              <th className="p-4">Candidate</th><th>Exam</th><th>Credential ID</th><th>Score</th><th>Issued</th><th className="p-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((c) => (
+              <tr key={c.id} className="border-b hover:bg-muted/20">
+                <td className="p-4 font-medium">{c.candidate}</td>
+                <td className="p-4">{c.exam}</td>
+                <td className="p-4 font-mono text-xs">{c.credentialId}</td>
+                <td className="p-4">{c.score}%</td>
+                <td className="p-4">{c.issuedOn}</td>
+                <td className="p-4">
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => download(c)}><Download className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => regenerate(c.id)}><RefreshCw className="h-4 w-4" /></Button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

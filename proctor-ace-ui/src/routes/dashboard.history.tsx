@@ -1,7 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
-import { toast } from "sonner";
 import { PageHeader } from "@/components/dashboard-bits";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,13 +22,11 @@ export const Route = createFileRoute("/dashboard/history")({
 });
 
 function HistoryPage() {
-  const [attempts, setAttempts] = useState<AttemptRow[]>([]);
-
-  usePageDataLoad(
+  const { data: attempts = [] } = usePageDataLoad(
     "history",
     async () => {
       const d = await apiAuth<{ attempts: AttemptRow[] }>("/api/candidate/attempts");
-      setAttempts(d.attempts);
+      return d.attempts;
     },
     [],
   );

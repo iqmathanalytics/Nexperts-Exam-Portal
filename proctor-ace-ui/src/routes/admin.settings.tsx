@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin-bits";
 import { Button } from "@/components/ui/button";
@@ -15,18 +15,23 @@ export const Route = createFileRoute("/admin/settings")({
 });
 
 function AdminSettings() {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-
-  usePageDataLoad(
+  const { data: profile } = usePageDataLoad(
     "admin-settings",
     async () => {
       const d = await apiAuth<{ user: { fullName: string; email: string } }>("/api/auth/me");
-      setName(d.user.fullName);
-      setEmail(d.user.email);
+      return d.user;
     },
     [],
   );
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+
+  useEffect(() => {
+    if (profile) {
+      setName(profile.fullName);
+      setEmail(profile.email);
+    }
+  }, [profile]);
 
   const saveProfile = async () => {
     try {

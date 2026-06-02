@@ -41,6 +41,7 @@ export function formatExam(e: Exam) {
     fullscreen: e.fullscreen,
     tabDetection: e.tabDetection,
     webcam: e.webcam,
+    questionPoolId: e.questionPoolId ?? null,
     createdAt: e.createdAt.toISOString(),
     updatedAt: e.updatedAt.toISOString(),
   };
@@ -51,6 +52,7 @@ export function formatQuestion(q: Question) {
     id: q.id,
     examId: q.examId,
     title: q.title,
+    code: q.code ?? null,
     type: questionTypeToUi(q.type),
     options: q.options as string[],
     correctAnswer: q.correctAnswer,

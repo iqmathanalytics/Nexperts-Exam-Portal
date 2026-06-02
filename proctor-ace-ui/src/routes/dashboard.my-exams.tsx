@@ -1,19 +1,27 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CalendarClock, ClipboardList, DoorOpen, PlayCircle, CalendarRange } from "lucide-react";
+import { CalendarClock, ClipboardList, DoorOpen, PlayCircle, CalendarRange, Zap } from "lucide-react";
 import { RescheduleExamDialog } from "@/components/reschedule-exam-dialog";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/dashboard-bits";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { apiAuth } from "@/lib/api-auth";
 import { ApiError } from "@/lib/api-client";
 import { ExamPrestartDialog } from "@/components/exam-prestart-dialog";
 import { acquireExamCamera, releaseExamCamera } from "@/lib/exam-media-stream";
 import { storeExamSession, type ExamStartPayload } from "@/lib/exam-session";
 import { cancelExamAttempt } from "@/lib/exam-attempt-api";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 import type { SchedulePhase } from "@/lib/exam-schedule";
 
 export const Route = createFileRoute("/dashboard/my-exams")({
@@ -46,22 +54,41 @@ type PurchasedExam = {
   inProgressAttemptId?: string | null;
 };
 
+function hasAttemptsRemaining(e: PurchasedExam) {
+  return e.attempts - e.used > 0 && !e.inProgressAttemptId;
+}
+
+function canReschedule(e: PurchasedExam) {
+  if (!hasAttemptsRemaining(e)) return false;
+  if (e.schedulePhase === "booking_expired") return false;
+  if (e.used > 0) return true;
+  return e.schedulePhase === "too_early" || e.schedulePhase === "expired";
+}
+
+function canStartImmediately(e: PurchasedExam) {
+  if (!hasAttemptsRemaining(e)) return false;
+  if (e.schedulePhase === "booking_expired") return false;
+  if (e.used > 0) return true;
+  return e.schedulePhase === "too_early" || e.schedulePhase === "waiting" || e.schedulePhase === "expired";
+}
+
 function MyExams() {
   const navigate = useNavigate();
   const { startExam: startExamFromSearch } = Route.useSearch();
-  const [exams, setExams] = useState<PurchasedExam[]>([]);
-  const [starting, setStarting] = useState<string | null>(null);
-  const [prestartExam, setPrestartExam] = useState<PurchasedExam | null>(null);
-  const [rescheduleExam, setRescheduleExam] = useState<PurchasedExam | null>(null);
-  const [reloadKey, setReloadKey] = useState(0);
-  usePageDataLoad(
+  const invalidateSession = useInvalidateSession();
+  const { data: exams = [], refetch } = usePageDataLoad(
     "my-exams",
     async () => {
       const d = await apiAuth<{ exams: PurchasedExam[] }>("/api/candidate/my-exams");
-      setExams(d.exams);
+      return d.exams;
     },
-    [reloadKey],
+    [],
   );
+  const [starting, setStarting] = useState<string | null>(null);
+  const [startingImmediately, setStartingImmediately] = useState<string | null>(null);
+  const [immediateTarget, setImmediateTarget] = useState<PurchasedExam | null>(null);
+  const [prestartExam, setPrestartExam] = useState<PurchasedExam | null>(null);
+  const [rescheduleExam, setRescheduleExam] = useState<PurchasedExam | null>(null);
 
   useEffect(() => {
     if (!startExamFromSearch || exams.length === 0) return;
@@ -106,6 +133,26 @@ function MyExams() {
     }
   };
 
+  const handleStartImmediately = async (e: PurchasedExam) => {
+    setStartingImmediately(e.id);
+    try {
+      await apiAuth("/api/payments/start-immediately", {
+        method: "POST",
+        body: JSON.stringify({ paymentId: e.paymentId }),
+      });
+      toast.success("Exam window is open — you can start now");
+      setImmediateTarget(null);
+      invalidateSession("my-exams");
+      const result = await refetch();
+      const updated = result.data?.find((x) => x.id === e.id);
+      setPrestartExam(updated ?? { ...e, schedulePhase: "ready" });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "Could not start immediately");
+    } finally {
+      setStartingImmediately(null);
+    }
+  };
+
   const actionFor = (e: PurchasedExam) => {
     const remaining = e.attempts - e.used;
     if (remaining <= 0) return { label: "No attempts left", disabled: true, action: null as (() => void) | null };
@@ -133,14 +180,16 @@ function MyExams() {
           action: () => setPrestartExam(e),
         };
       case "expired":
+        return {
+          label: "Window ended",
+          disabled: true,
+          action: null,
+        };
       case "booking_expired":
         return {
-          label: e.schedulePhase === "booking_expired" ? "Booking expired" : "Reschedule",
-          disabled: e.schedulePhase === "booking_expired",
-          action:
-            e.schedulePhase === "booking_expired"
-              ? null
-              : () => setRescheduleExam(e),
+          label: "Booking expired",
+          disabled: true,
+          action: null,
         };
       case "too_early":
         return {
@@ -165,8 +214,33 @@ function MyExams() {
         examId={rescheduleExam?.id ?? ""}
         examTitle={rescheduleExam?.title ?? ""}
         duration={rescheduleExam?.duration ?? 60}
-        onRescheduled={() => setReloadKey((k) => k + 1)}
+        onRescheduled={() => invalidateSession("my-exams")}
       />
+
+      <Dialog open={!!immediateTarget} onOpenChange={(o) => !o && setImmediateTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Start exam immediately?</DialogTitle>
+            <DialogDescription>
+              This opens a new exam window right now for{" "}
+              <span className="font-medium text-foreground">{immediateTarget?.title}</span>. Your attempt
+              will begin when you click Start Exam and the timer runs for the full exam duration.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImmediateTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              className="bg-gradient-emerald text-white"
+              disabled={!!startingImmediately}
+              onClick={() => immediateTarget && void handleStartImmediately(immediateTarget)}
+            >
+              {startingImmediately ? "Opening…" : "Start immediately"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <ExamPrestartDialog
         open={!!prestartExam}
@@ -223,15 +297,22 @@ function MyExams() {
                       {remaining} of {e.attempts} attempts left
                     </div>
                     <Progress value={(e.used / e.attempts) * 100} className="h-2 w-32" />
-                    <div className="flex gap-2">
-                      {(e.schedulePhase === "expired" || e.schedulePhase === "too_early") && (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {canReschedule(e) && (
+                        <Button size="sm" variant="outline" onClick={() => setRescheduleExam(e)}>
+                          <CalendarRange className="mr-2 h-4 w-4" />
+                          Reschedule
+                        </Button>
+                      )}
+                      {canStartImmediately(e) && (
                         <Button
                           size="sm"
                           variant="outline"
-                          onClick={() => setRescheduleExam(e)}
+                          disabled={startingImmediately === e.id}
+                          onClick={() => setImmediateTarget(e)}
                         >
-                          <CalendarRange className="mr-2 h-4 w-4" />
-                          Reschedule
+                          <Zap className="mr-2 h-4 w-4" />
+                          Start immediately
                         </Button>
                       )}
                       <Button

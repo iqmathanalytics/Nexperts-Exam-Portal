@@ -24,17 +24,15 @@ type Cert = {
 };
 
 function Certificates() {
-  const [certs, setCerts] = useState<Cert[]>([]);
-  const [downloading, setDownloading] = useState<string | null>(null);
-
-  usePageDataLoad(
+  const { data: certs = [] } = usePageDataLoad(
     "certificates",
     async () => {
       const d = await apiAuth<{ certificates: Cert[] }>("/api/candidate/certificates");
-      setCerts(d.certificates);
+      return d.certificates;
     },
     [],
   );
+  const [downloading, setDownloading] = useState<string | null>(null);
 
   const shareLink = (credentialId: string) => {
     const path = `/certificate/${credentialId}`;

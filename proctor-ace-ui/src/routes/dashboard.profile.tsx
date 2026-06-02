@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Camera, Save } from "lucide-react";
 import { PageHeader } from "@/components/dashboard-bits";
@@ -25,25 +25,28 @@ export const Route = createFileRoute("/dashboard/profile")({
 });
 
 function Profile() {
-  const [form, setForm] = useState<ProfileForm | null>(null);
-
-  usePageDataLoad(
+  const { data: profile } = usePageDataLoad(
     "profile",
     async () => {
       const d = await apiAuth<{ user: { fullName: string; email: string; phone: string | null; icPassport: string | null; createdAt: string } }>(
         "/api/auth/me",
       );
       const u = d.user;
-      setForm({
+      return {
         name: u.fullName,
         email: u.email,
         phone: u.phone ?? "",
         icPassport: u.icPassport ?? "",
         joined: u.createdAt,
-      });
+      } satisfies ProfileForm;
     },
     [],
   );
+  const [form, setForm] = useState<ProfileForm | null>(null);
+
+  useEffect(() => {
+    if (profile) setForm(profile);
+  }, [profile]);
 
   if (!form) return null;
 

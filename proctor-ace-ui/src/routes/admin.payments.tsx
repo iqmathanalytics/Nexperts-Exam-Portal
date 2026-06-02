@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { apiAuth } from "@/lib/api-auth";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 import { useAdminSearch } from "@/contexts/admin-search-context";
 import { ApiError } from "@/lib/api-client";
 import { DollarSign, TrendingUp, Receipt } from "lucide-react";
@@ -18,17 +18,16 @@ export const Route = createFileRoute("/admin/payments")({
 
 function AdminPayments() {
   const { query: search, setQuery: setSearch } = useAdminSearch();
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
-  const [invoice, setInvoice] = useState<PaymentRow | null>(null);
-
-  usePageDataLoad(
+  const invalidateSession = useInvalidateSession();
+  const { data: payments = [] } = usePageDataLoad(
     "admin-payments",
     async () => {
       const d = await apiAuth<{ payments: PaymentRow[] }>("/api/admin/payments");
-      setPayments(d.payments);
+      return d.payments;
     },
     [],
   );
+  const [invoice, setInvoice] = useState<PaymentRow | null>(null);
 
   const stats = useMemo(() => {
     const paid = payments.filter((p) => p.status === "PAID" || p.status === "Paid");
@@ -42,8 +41,8 @@ function AdminPayments() {
     const q = search.toLowerCase();
     return (
       p.user.toLowerCase().includes(q) ||
-      p.examTitle.toLowerCase().includes(q) ||
-      p.invoice.toLowerCase().includes(q) ||
+      p.exam.toLowerCase().includes(q) ||
+      p.invoiceId.toLowerCase().includes(q) ||
       (p.voucher?.toLowerCase().includes(q) ?? false)
     );
   });
@@ -53,7 +52,7 @@ function AdminPayments() {
     try {
       await apiAuth(`/api/admin/payments/${id}/refund`, { method: "PATCH" });
       toast.success("Payment refunded");
-      load();
+      invalidateSession("admin-payments");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Refund failed");
     }

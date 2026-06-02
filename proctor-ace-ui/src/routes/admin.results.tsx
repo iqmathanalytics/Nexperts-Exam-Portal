@@ -12,6 +12,11 @@ import {
 
 type ResultRow = { id: string; candidate: string; exam: string; score: number; result: string; date: string; attempts?: number };
 
+type ResultsData = {
+  results: ResultRow[];
+  exams: { id: string; title: string }[];
+};
+
 export const Route = createFileRoute("/admin/results")({
   component: AdminResults,
 });
@@ -19,23 +24,22 @@ export const Route = createFileRoute("/admin/results")({
 function AdminResults() {
   const { query: search, setQuery: setSearch } = useAdminSearch();
   const [filterExam, setFilterExam] = useState("all");
-  const [results, setResults] = useState<ResultRow[]>([]);
 
-  const [exams, setExams] = useState<{ id: string; title: string }[]>([]);
-
-  usePageDataLoad(
+  const { data } = usePageDataLoad(
     "admin-results",
-    async () => {
+    async (): Promise<ResultsData> => {
       const q = filterExam !== "all" ? `?examId=${filterExam}` : "";
       const [resultsRes, examsRes] = await Promise.all([
         apiAuth<{ results: ResultRow[] }>(`/api/admin/results${q}`),
         apiAuth<{ exams: { id: string; title: string }[] }>("/api/admin/exams"),
       ]);
-      setResults(resultsRes.results);
-      setExams(examsRes.exams);
+      return { results: resultsRes.results, exams: examsRes.exams };
     },
     [filterExam],
   );
+
+  const results = data?.results ?? [];
+  const exams = data?.exams ?? [];
 
   const pass = results.filter((r) => r.result === "Pass").length;
   const fail = results.filter((r) => r.result === "Fail").length;

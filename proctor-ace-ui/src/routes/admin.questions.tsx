@@ -23,15 +23,22 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { QuestionFormFields, downloadCsvTemplate, parseQuestionCsv } from "@/components/question-form-fields";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { QuestionFormFields, parseQuestionCsv } from "@/components/question-form-fields";
+import { QuestionCsvBulkInput } from "@/components/question-csv-bulk-input";
+import { downloadCsvTemplate } from "@/lib/parse-question-csv";
+import { QuestionCodeBlock } from "@/components/question-code-block";
+import { usePageDataLoad, usePageLoading } from "@/contexts/page-load-context";
 import { useAdminSearch } from "@/contexts/admin-search-context";
 import { apiAuth } from "@/lib/api-auth";
+import {
+  buildAdminQuestionsQuery,
+  QB_INITIAL_LIMIT,
+  QB_LOAD_MORE_LIMIT,
+} from "@/lib/admin-questions-api";
 import { ApiError } from "@/lib/api-client";
 import type { ExamFormState, QuestionFormState } from "@/lib/types";
 
 type QuestionRow = QuestionFormState & { id: string; examTitle?: string | null };
-type ExamOption = { id: string; title: string };
 
 const searchSchema = z.object({
   examId: z.string().optional(),
@@ -43,10 +50,12 @@ export const Route = createFileRoute("/admin/questions")({
 });
 
 const FILTER_ALL = "all";
+const FILTER_UNASSIGNED = "unassigned";
 
 const emptyQuestion = (examId?: string): QuestionFormState => ({
   examId: examId || undefined,
   title: "",
+  code: null,
   type: "Multiple Choice",
   options: ["Option A", "Option B", "Option C", "Option D"],
   correctAnswer: "Option A",
@@ -60,8 +69,102 @@ function QuestionBank() {
   const { examId: preselectedExamId } = Route.useSearch();
   const { query: search, setQuery: setSearch } = useAdminSearch();
   const [filterExamId, setFilterExamId] = useState<string>(preselectedExamId ?? "all");
-  const [exams, setExams] = useState<ExamOption[]>([]);
+  const [filterType, setFilterType] = useState(FILTER_ALL);
+  const [filterTopic, setFilterTopic] = useState(FILTER_ALL);
+  const [filterDifficulty, setFilterDifficulty] = useState(FILTER_ALL);
+  const { data: exams = [] } = usePageDataLoad(
+    "admin-questions-exams",
+    async () => {
+      const d = await apiAuth<{ exams: (ExamFormState & { id: string })[] }>("/api/admin/exams");
+      return d.exams.map((e) => ({ id: e.id, title: e.title }));
+    },
+    [],
+  );
   const [questions, setQuestions] = useState<QuestionRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [listLoading, setListLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const [bankFilterOptions, setBankFilterOptions] = useState<{
+    topics: string[];
+    types: string[];
+    difficulties: string[];
+  }>({ topics: [], types: [], difficulties: [] });
+
+  usePageLoading("admin-questions", listLoading && questions.length === 0);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const fetchQuestionsPage = useCallback(
+    async (offset: number, limit: number, append: boolean) => {
+      const q = buildAdminQuestionsQuery({
+        filterExamId,
+        search: debouncedSearch,
+        filterType,
+        filterTopic,
+        filterDifficulty,
+        limit,
+        offset,
+      });
+      const res = await apiAuth<{ questions: QuestionRow[]; total: number; hasMore: boolean }>(
+        `/api/admin/questions${q}`,
+      );
+      setTotalCount(res.total);
+      setQuestions((prev) => (append ? [...prev, ...res.questions] : res.questions));
+      return res;
+    },
+    [filterExamId, debouncedSearch, filterType, filterTopic, filterDifficulty],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setListLoading(true);
+    setQuestions([]);
+    void fetchQuestionsPage(0, QB_INITIAL_LIMIT, false)
+      .catch(() => {
+        if (!cancelled) toast.error("Could not load questions");
+      })
+      .finally(() => {
+        if (!cancelled) setListLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchQuestionsPage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const examQ =
+      filterExamId !== FILTER_ALL ? `?examId=${encodeURIComponent(filterExamId)}` : "";
+    void apiAuth<{ topics: string[]; types: string[]; difficulties: string[] }>(
+      `/api/admin/questions/filter-options${examQ}`,
+    )
+      .then((opts) => {
+        if (!cancelled) setBankFilterOptions(opts);
+      })
+      .catch(() => {
+        if (!cancelled) setBankFilterOptions({ topics: [], types: [], difficulties: [] });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [filterExamId]);
+
+  const loadMoreQuestions = async () => {
+    setLoadingMore(true);
+    try {
+      await fetchQuestionsPage(questions.length, QB_LOAD_MORE_LIMIT, true);
+    } catch {
+      toast.error("Could not load more questions");
+    } finally {
+      setLoadingMore(false);
+    }
+  };
+
+  const hasMore = questions.length < totalCount;
   const [preview, setPreview] = useState<QuestionRow | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -79,6 +182,8 @@ function QuestionBank() {
   const [assignFilterTopic, setAssignFilterTopic] = useState(FILTER_ALL);
   const [assignFilterType, setAssignFilterType] = useState(FILTER_ALL);
   const [assignFilterDifficulty, setAssignFilterDifficulty] = useState(FILTER_ALL);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   const resetAssignFilters = () => {
     setAssignFilterSourceExam(FILTER_ALL);
@@ -91,36 +196,32 @@ function QuestionBank() {
     if (preselectedExamId) setFilterExamId(preselectedExamId);
   }, [preselectedExamId]);
 
-  usePageDataLoad(
-    "admin-questions",
-    async () => {
-      const q = filterExamId !== "all" ? `?examId=${filterExamId}` : "";
-      const [examsRes, questionsRes] = await Promise.all([
-        apiAuth<{ exams: (ExamFormState & { id: string })[] }>("/api/admin/exams"),
-        apiAuth<{ questions: QuestionRow[] }>(`/api/admin/questions${q}`),
-      ]);
-      setExams(examsRes.exams.map((e) => ({ id: e.id, title: e.title })));
-      setQuestions(questionsRes.questions);
-    },
-    [filterExamId],
-  );
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [filterExamId, filterType, filterTopic, filterDifficulty, debouncedSearch]);
 
-  const filtered = questions.filter(
-    (q) => q.title.toLowerCase().includes(search.toLowerCase()) || q.topic.toLowerCase().includes(search.toLowerCase()),
-  );
+  const allFilteredSelected =
+    questions.length > 0 && questions.every((row) => selectedIds.has(row.id));
+  const selectedCount = selectedIds.size;
 
   const examName = (id?: string | null) => exams.find((e) => e.id === id)?.title ?? "Unassigned";
 
   const reloadQuestions = useCallback(async () => {
-    const q = filterExamId !== "all" ? `?examId=${filterExamId}` : "";
-    const questionsRes = await apiAuth<{ questions: QuestionRow[] }>(`/api/admin/questions${q}`);
-    setQuestions(questionsRes.questions);
-  }, [filterExamId]);
+    setListLoading(true);
+    try {
+      await fetchQuestionsPage(0, QB_INITIAL_LIMIT, false);
+    } catch {
+      toast.error("Could not reload questions");
+    } finally {
+      setListLoading(false);
+    }
+  }, [fetchQuestionsPage]);
 
   const loadAssignPool = useCallback(async () => {
     setAssignPoolLoading(true);
     try {
-      const d = await apiAuth<{ questions: QuestionRow[] }>("/api/admin/questions");
+      const q = buildAdminQuestionsQuery({ filterExamId: FILTER_ALL, all: true });
+      const d = await apiAuth<{ questions: QuestionRow[] }>(`/api/admin/questions${q}`);
       setAssignPool(d.questions);
     } catch {
       toast.error("Could not load question bank");
@@ -161,7 +262,8 @@ function QuestionBank() {
 
   const openCreate = () => {
     setEditId(null);
-    const examId = filterExamId !== "all" ? filterExamId : preselectedExamId;
+    const examId =
+      filterExamId !== FILTER_ALL && filterExamId !== FILTER_UNASSIGNED ? filterExamId : preselectedExamId;
     setForm(emptyQuestion(examId));
     setFormOpen(true);
   };
@@ -200,7 +302,10 @@ function QuestionBank() {
   }, [assignableForTarget, assignFilterSourceExam, assignFilterTopic, assignFilterType, assignFilterDifficulty]);
 
   const openAssign = () => {
-    const examId = filterExamId !== "all" ? filterExamId : preselectedExamId ?? "";
+    const examId =
+      filterExamId !== FILTER_ALL && filterExamId !== FILTER_UNASSIGNED
+        ? filterExamId
+        : preselectedExamId ?? "";
     setAssignExamId(examId);
     setAssignSelected(new Set());
     resetAssignFilters();
@@ -290,20 +395,75 @@ function QuestionBank() {
     try {
       await apiAuth(`/api/admin/questions/${id}`, { method: "DELETE" });
       toast.success("Question deleted");
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
       await reloadQuestions();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Delete failed");
     }
   };
 
+  const toggleRowSelected = (id: string, checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllFiltered = (checked: boolean) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const row of questions) {
+        if (checked) next.add(row.id);
+        else next.delete(row.id);
+      }
+      return next;
+    });
+  };
+
+  const bulkDeleteSelected = async () => {
+    if (!selectedCount) return;
+    if (!confirm(`Delete ${selectedCount} selected question(s)? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    try {
+      const ids = [...selectedIds];
+      const chunkSize = 500;
+      let total = 0;
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        const res = await apiAuth<{ count: number }>("/api/admin/questions/bulk-delete", {
+          method: "POST",
+          body: JSON.stringify({ questionIds: chunk }),
+        });
+        total += res.count;
+      }
+      toast.success(`${total} question(s) deleted`);
+      setSelectedIds(new Set());
+      await reloadQuestions();
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Bulk delete failed");
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
+  const bulkParsedCount = useMemo(() => parseQuestionCsv(bulkText, bulkExamId || undefined).length, [bulkText, bulkExamId]);
+
   const importBulk = async () => {
-    const targetExamId = bulkExamId || (filterExamId !== "all" ? filterExamId : "");
+    const targetExamId =
+      bulkExamId ||
+      (filterExamId !== FILTER_ALL && filterExamId !== FILTER_UNASSIGNED ? filterExamId : "");
     if (!targetExamId) {
       toast.error("Select an exam for bulk import");
       return;
     }
     const items = parseQuestionCsv(bulkText, targetExamId);
-    if (!items.length) return toast.error("Paste CSV using the template (Download template)");
+    if (!items.length) return toast.error("Upload or paste CSV using the template");
     try {
       const res = await apiAuth<{ count: number }>("/api/admin/questions/bulk", {
         method: "POST",
@@ -325,6 +485,16 @@ function QuestionBank() {
         sub="Create questions or link existing ones from the bank to an exam."
         action={
           <div className="flex flex-wrap gap-2">
+            {selectedCount > 0 && (
+              <Button
+                variant="destructive"
+                disabled={bulkDeleting}
+                onClick={() => void bulkDeleteSelected()}
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                {bulkDeleting ? "Deleting…" : `Delete selected (${selectedCount})`}
+              </Button>
+            )}
             <Button variant="outline" onClick={downloadCsvTemplate}>Download template</Button>
             <Button variant="outline" onClick={openAssign}>
               <Link2 className="mr-2 h-4 w-4" />Assign existing
@@ -332,7 +502,9 @@ function QuestionBank() {
             <Button
               variant="outline"
               onClick={() => {
-                setBulkExamId(filterExamId !== "all" ? filterExamId : "");
+                setBulkExamId(
+                  filterExamId !== FILTER_ALL && filterExamId !== FILTER_UNASSIGNED ? filterExamId : "",
+                );
                 setBulkOpen(true);
               }}
             >
@@ -345,17 +517,69 @@ function QuestionBank() {
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Label className="text-sm text-muted-foreground">Filter by exam</Label>
-        <Select value={filterExamId} onValueChange={setFilterExamId}>
-          <SelectTrigger className="w-64"><SelectValue placeholder="All exams" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All exams</SelectItem>
-            {exams.map((e) => (
-              <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Exam</Label>
+          <Select value={filterExamId} onValueChange={setFilterExamId}>
+            <SelectTrigger className="w-52"><SelectValue placeholder="All exams" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FILTER_ALL}>All exams</SelectItem>
+              <SelectItem value={FILTER_UNASSIGNED}>Unassigned</SelectItem>
+              {exams.map((e) => (
+                <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Type</Label>
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-44"><SelectValue placeholder="All types" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FILTER_ALL}>All types</SelectItem>
+              {bankFilterOptions.types.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Difficulty</Label>
+          <Select value={filterDifficulty} onValueChange={setFilterDifficulty}>
+            <SelectTrigger className="w-40"><SelectValue placeholder="All" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FILTER_ALL}>All difficulties</SelectItem>
+              {bankFilterOptions.difficulties.map((d) => (
+                <SelectItem key={d} value={d}>{d}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Topic</Label>
+          <Select value={filterTopic} onValueChange={setFilterTopic}>
+            <SelectTrigger className="w-48"><SelectValue placeholder="All topics" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FILTER_ALL}>All topics</SelectItem>
+              {bankFilterOptions.topics.map((t) => (
+                <SelectItem key={t} value={t}>{t}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {(filterType !== FILTER_ALL || filterTopic !== FILTER_ALL || filterDifficulty !== FILTER_ALL) && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setFilterType(FILTER_ALL);
+              setFilterTopic(FILTER_ALL);
+              setFilterDifficulty(FILTER_ALL);
+            }}
+          >
+            Clear filters
+          </Button>
+        )}
         {preselectedExamId && (
           <Button asChild variant="ghost" size="sm">
             <Link to="/admin/questions" search={{}}>Clear exam filter</Link>
@@ -365,23 +589,56 @@ function QuestionBank() {
 
       <DataToolbar search={search} onSearch={setSearch} placeholder="Search questions..." hideInput />
 
+      {totalCount > 0 && (
+        <p className="text-xs text-muted-foreground">
+          Showing {questions.length} of {totalCount} question{totalCount === 1 ? "" : "s"}
+          {selectedCount > 0 ? ` · ${selectedCount} selected` : ""}
+        </p>
+      )}
+
       <div className="overflow-hidden rounded-2xl border border-border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-muted-foreground">
-              <th className="p-4">Question</th><th>Exam</th><th>Type</th><th>Difficulty</th><th>Topic</th><th className="p-4 text-right">Actions</th>
+              <th className="w-10 p-4">
+                <Checkbox
+                  checked={allFilteredSelected}
+                  onCheckedChange={(v) => toggleSelectAllFiltered(v === true)}
+                  aria-label="Select all loaded questions"
+                />
+              </th>
+              <th className="p-4">Question</th>
+              <th>Exam</th>
+              <th>Type</th>
+              <th>Difficulty</th>
+              <th>Topic</th>
+              <th className="p-4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.length === 0 && (
+            {listLoading && questions.length === 0 && (
               <tr>
-                <td colSpan={6} className="p-8 text-center text-muted-foreground">
-                  No questions yet. Click <strong>Add question</strong> or <strong>Assign existing</strong>.
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  Loading questions…
                 </td>
               </tr>
             )}
-            {filtered.map((q) => (
-              <tr key={q.id} className="border-b hover:bg-muted/20">
+            {!listLoading && questions.length === 0 && (
+              <tr>
+                <td colSpan={7} className="p-8 text-center text-muted-foreground">
+                  No questions match your filters. Click <strong>Add question</strong> or <strong>Assign existing</strong>.
+                </td>
+              </tr>
+            )}
+            {questions.map((q) => (
+              <tr key={q.id} className={`border-b hover:bg-muted/20 ${selectedIds.has(q.id) ? "bg-muted/30" : ""}`}>
+                <td className="p-4">
+                  <Checkbox
+                    checked={selectedIds.has(q.id)}
+                    onCheckedChange={(v) => toggleRowSelected(q.id, v === true)}
+                    aria-label={`Select question ${q.title.slice(0, 40)}`}
+                  />
+                </td>
                 <td className="max-w-md p-4"><div className="line-clamp-2 font-medium">{q.title}</div></td>
                 <td className="p-4 text-xs">{q.examTitle ?? examName(q.examId) ?? "—"}</td>
                 <td className="p-4">{q.type}</td>
@@ -398,6 +655,15 @@ function QuestionBank() {
             ))}
           </tbody>
         </table>
+        {hasMore && (
+          <div className="flex justify-center border-t border-border bg-muted/20 p-4">
+            <Button variant="outline" onClick={() => void loadMoreQuestions()} disabled={loadingMore}>
+              {loadingMore
+                ? "Loading…"
+                : `Show more (${Math.min(QB_LOAD_MORE_LIMIT, totalCount - questions.length)} more)`}
+            </Button>
+          </div>
+        )}
       </div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
@@ -593,6 +859,7 @@ function QuestionBank() {
             <div className="space-y-3 text-sm">
               <p className="text-xs text-muted-foreground">Exam: {preview.examTitle ?? examName(preview.examId)}</p>
               <p className="font-medium">{preview.title}</p>
+              <QuestionCodeBlock code={preview.code} />
               <p className="text-xs text-muted-foreground">Topic: {preview.topic}</p>
               <ul className="list-inside list-disc text-muted-foreground">{preview.options.map((o) => <li key={o}>{o}</li>)}</ul>
               <p><span className="text-muted-foreground">Answer:</span> {preview.correctAnswer}</p>
@@ -606,7 +873,9 @@ function QuestionBank() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Bulk upload (CSV)</DialogTitle>
-            <DialogDescription>Import many questions at once and assign them to one exam.</DialogDescription>
+            <DialogDescription>
+              Columns: title, code, type, topic, difficulty, option1–4, correctAnswer, explanation. Leave code empty when not needed.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
             <Label>Assign to exam *</Label>
@@ -619,13 +888,13 @@ function QuestionBank() {
               </SelectContent>
             </Select>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Columns: title, type, topic, difficulty, option1–4, correctAnswer, explanation
-          </p>
-          <Button type="button" variant="link" className="h-auto p-0 text-xs" onClick={downloadCsvTemplate}>
-            Download template
-          </Button>
-          <Textarea value={bulkText} onChange={(e) => setBulkText(e.target.value)} rows={10} placeholder="Paste full CSV from template…" />
+          <QuestionCsvBulkInput
+            value={bulkText}
+            onChange={setBulkText}
+            parsedCount={bulkParsedCount}
+            parsedCountLabel="question(s) ready to import"
+            id="qb-csv-file"
+          />
           <DialogFooter><Button onClick={importBulk}>Import</Button></DialogFooter>
         </DialogContent>
       </Dialog>

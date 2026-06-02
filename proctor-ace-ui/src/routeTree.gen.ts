@@ -33,6 +33,7 @@ import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminResultsRouteImport } from './routes/admin.results'
 import { Route as AdminReportsRouteImport } from './routes/admin.reports'
 import { Route as AdminQuestionsRouteImport } from './routes/admin.questions'
+import { Route as AdminQuestionPoolsRouteImport } from './routes/admin.question-pools'
 import { Route as AdminPaymentsRouteImport } from './routes/admin.payments'
 import { Route as AdminMonitoringRouteImport } from './routes/admin.monitoring'
 import { Route as AdminExamsRouteImport } from './routes/admin.exams'
@@ -166,6 +167,11 @@ const AdminQuestionsRoute = AdminQuestionsRouteImport.update({
   path: '/questions',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminQuestionPoolsRoute = AdminQuestionPoolsRouteImport.update({
+  id: '/question-pools',
+  path: '/question-pools',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPaymentsRoute = AdminPaymentsRouteImport.update({
   id: '/payments',
   path: '/payments',
@@ -243,6 +249,7 @@ export interface FileRoutesByFullPath {
   '/admin/exams': typeof AdminExamsRouteWithChildren
   '/admin/monitoring': typeof AdminMonitoringRoute
   '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/question-pools': typeof AdminQuestionPoolsRoute
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/results': typeof AdminResultsRoute
@@ -278,6 +285,7 @@ export interface FileRoutesByTo {
   '/admin/certificates': typeof AdminCertificatesRoute
   '/admin/monitoring': typeof AdminMonitoringRoute
   '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/question-pools': typeof AdminQuestionPoolsRoute
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/results': typeof AdminResultsRoute
@@ -316,6 +324,7 @@ export interface FileRoutesById {
   '/admin/exams': typeof AdminExamsRouteWithChildren
   '/admin/monitoring': typeof AdminMonitoringRoute
   '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/question-pools': typeof AdminQuestionPoolsRoute
   '/admin/questions': typeof AdminQuestionsRoute
   '/admin/reports': typeof AdminReportsRoute
   '/admin/results': typeof AdminResultsRoute
@@ -356,6 +365,7 @@ export interface FileRouteTypes {
     | '/admin/exams'
     | '/admin/monitoring'
     | '/admin/payments'
+    | '/admin/question-pools'
     | '/admin/questions'
     | '/admin/reports'
     | '/admin/results'
@@ -391,6 +401,7 @@ export interface FileRouteTypes {
     | '/admin/certificates'
     | '/admin/monitoring'
     | '/admin/payments'
+    | '/admin/question-pools'
     | '/admin/questions'
     | '/admin/reports'
     | '/admin/results'
@@ -428,6 +439,7 @@ export interface FileRouteTypes {
     | '/admin/exams'
     | '/admin/monitoring'
     | '/admin/payments'
+    | '/admin/question-pools'
     | '/admin/questions'
     | '/admin/reports'
     | '/admin/results'
@@ -635,6 +647,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminQuestionsRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/question-pools': {
+      id: '/admin/question-pools'
+      path: '/question-pools'
+      fullPath: '/admin/question-pools'
+      preLoaderRoute: typeof AdminQuestionPoolsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/payments': {
       id: '/admin/payments'
       path: '/payments'
@@ -758,6 +777,7 @@ interface AdminRouteChildren {
   AdminExamsRoute: typeof AdminExamsRouteWithChildren
   AdminMonitoringRoute: typeof AdminMonitoringRoute
   AdminPaymentsRoute: typeof AdminPaymentsRoute
+  AdminQuestionPoolsRoute: typeof AdminQuestionPoolsRoute
   AdminQuestionsRoute: typeof AdminQuestionsRoute
   AdminReportsRoute: typeof AdminReportsRoute
   AdminResultsRoute: typeof AdminResultsRoute
@@ -773,6 +793,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminExamsRoute: AdminExamsRouteWithChildren,
   AdminMonitoringRoute: AdminMonitoringRoute,
   AdminPaymentsRoute: AdminPaymentsRoute,
+  AdminQuestionPoolsRoute: AdminQuestionPoolsRoute,
   AdminQuestionsRoute: AdminQuestionsRoute,
   AdminReportsRoute: AdminReportsRoute,
   AdminResultsRoute: AdminResultsRoute,

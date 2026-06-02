@@ -1,11 +1,25 @@
-import { api, apiBase } from "@/lib/api-client";
-import { getToken } from "@/lib/auth";
+import { ApiError, api, apiBase } from "@/lib/api-client";
+import { clearAuth, getToken } from "@/lib/auth";
 import { downloadBlob } from "@/lib/download-blob";
+
+function handleUnauthorized(path: string) {
+  clearAuth();
+  const to = path.startsWith("/api/admin/") ? "/admin-login" : "/login";
+  if (typeof window !== "undefined") {
+    window.location.href = to;
+  }
+}
 
 export function apiAuth<T>(path: string, options: RequestInit = {}) {
   const token = getToken();
   if (!token) throw new Error("Not authenticated");
-  return api<T>(path, { ...options, token });
+  return api<T>(path, { ...options, token }).catch((err) => {
+    if (err instanceof ApiError && err.status === 401) {
+      handleUnauthorized(path);
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+    throw err;
+  });
 }
 
 /** Map legacy .pdf paths to JSON download endpoints (avoids IDM/CORS on binary URLs) */
@@ -40,6 +54,10 @@ export async function downloadAuthPdf(path: string, filename: string) {
   });
 
   if (!res.ok) {
+    if (res.status === 401) {
+      handleUnauthorized(path);
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     let detail = "";
     try {
       const err = (await res.json()) as { error?: string };

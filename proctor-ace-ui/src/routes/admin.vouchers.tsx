@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { ChevronDown, ChevronRight, Download, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin-bits";
@@ -25,6 +25,9 @@ type BatchRow = {
   quantity: number;
   usedCount: number;
   availableCount: number;
+  totalUses: number;
+  totalUsageLimit: number;
+  usageLimitPerVoucher: number;
   createdAt: string;
 };
 
@@ -36,7 +39,23 @@ type BatchDetail = {
   expiry: string;
   active: boolean;
   quantity: number;
-  vouchers: { id: string; code: string; used: boolean; active: boolean; redeemedAt: string | null }[];
+  usageLimitPerVoucher: number;
+  vouchers: {
+    id: string;
+    code: string;
+    used: boolean;
+    usedCount: number;
+    usageLimit: number;
+    active: boolean;
+    redeemedAt: string | null;
+    redemptions: {
+      id: string;
+      usedAt: string;
+      userId: string;
+      userName: string;
+      userEmail: string;
+    }[];
+  }[];
 };
 
 type BatchForm = {
@@ -44,6 +63,7 @@ type BatchForm = {
   quantity: number;
   discountType: string;
   discountAmount: number;
+  usageLimitPerVoucher: number;
   expiry: string;
   active: boolean;
 };
@@ -53,6 +73,7 @@ const emptyForm = (): BatchForm => ({
   quantity: 10,
   discountType: "Percentage",
   discountAmount: 25,
+  usageLimitPerVoucher: 1,
   expiry: new Date(Date.now() + 90 * 86400000).toISOString().slice(0, 10),
   active: true,
 });
@@ -64,17 +85,19 @@ export const Route = createFileRoute("/admin/vouchers")({
 function AdminVouchers() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<BatchForm>(emptyForm());
-  const [batches, setBatches] = useState<BatchRow[]>([]);
+  const { data: batches = [], refetch } = usePageDataLoad(
+    "admin-vouchers",
+    async () => {
+      const d = await apiAuth<{ batches: BatchRow[] }>("/api/admin/voucher-batches");
+      return d.batches;
+    },
+    [],
+  );
+
   const [expanded, setExpanded] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, BatchDetail>>({});
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    const d = await apiAuth<{ batches: BatchRow[] }>("/api/admin/voucher-batches");
-    setBatches(d.batches);
-  }, []);
-
-  usePageDataLoad("admin-vouchers", load, []);
+  const refresh = () => void refetch();
 
   const toggleExpand = async (id: string) => {
     if (expanded === id) {
@@ -102,7 +125,7 @@ function AdminVouchers() {
       });
       toast.success(`Created batch of ${form.quantity} vouchers`);
       setDialogOpen(false);
-      load();
+      refresh();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Create failed");
     }
@@ -111,7 +134,7 @@ function AdminVouchers() {
   const toggleBatch = async (b: BatchRow) => {
     try {
       await apiAuth(`/api/admin/voucher-batches/${b.id}/toggle`, { method: "PATCH" });
-      load();
+      refresh();
     } catch {
       toast.error("Toggle failed");
     }
@@ -129,7 +152,7 @@ function AdminVouchers() {
     <>
       <PageHeader
         title="Voucher batches"
-        sub="Generate bulk 32-character codes. Each code is one-time use per user."
+        sub="Generate bulk 32-character codes with configurable usage limits and redemption tracking."
         action={
           <Button onClick={() => { setForm(emptyForm()); setDialogOpen(true); }} className="bg-gradient-emerald text-white">
             <Plus className="mr-2 h-4 w-4" /> Generate batch
@@ -146,35 +169,34 @@ function AdminVouchers() {
             const detail = details[b.id];
             return (
               <div key={b.id} className="rounded-xl border border-border bg-card shadow-soft">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 p-4 text-left"
-                  onClick={() => toggleExpand(b.id)}
-                >
-                  {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                  <div className="flex-1">
-                    <div className="font-medium">{b.label}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {b.quantity} codes · {b.discountType} {b.discountAmount}
-                      {b.discountType === "Percentage" ? "%" : " MYR"} · expires {b.expiry}
+                <div className="flex w-full items-center gap-3 p-4">
+                  <button
+                    type="button"
+                    className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                    onClick={() => toggleExpand(b.id)}
+                  >
+                    {isOpen ? <ChevronDown className="h-4 w-4 shrink-0" /> : <ChevronRight className="h-4 w-4 shrink-0" />}
+                    <div className="min-w-0 flex-1">
+                      <div className="font-medium">{b.label}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {b.quantity} codes · {b.discountType} {b.discountAmount}
+                        {b.discountType === "Percentage" ? "%" : " MYR"} · up to {b.usageLimitPerVoucher} use(s) per code · expires {b.expiry}
+                      </div>
                     </div>
-                  </div>
-                  <div className="text-right text-xs">
-                    <div className="text-success">{b.availableCount} available</div>
-                    <div className="text-muted-foreground">{b.usedCount} used</div>
-                  </div>
-                  <Switch checked={b.active} onCheckedChange={() => toggleBatch(b)} onClick={(e) => e.stopPropagation()} />
+                    <div className="shrink-0 text-right text-xs">
+                      <div className="text-success">{b.totalUsageLimit - b.totalUses} uses left</div>
+                      <div className="text-muted-foreground">{b.totalUses}/{b.totalUsageLimit} uses consumed</div>
+                    </div>
+                  </button>
+                  <Switch checked={b.active} onCheckedChange={() => toggleBatch(b)} />
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      downloadCsv(b.id);
-                    }}
+                    onClick={() => downloadCsv(b.id)}
                   >
                     <Download className="h-4 w-4" />
                   </Button>
-                </button>
+                </div>
                 {isOpen && (
                   <div className="border-t border-border px-4 pb-4">
                     {loadingDetail === b.id ? (
@@ -185,20 +207,37 @@ function AdminVouchers() {
                           <thead className="bg-muted/50">
                             <tr>
                               <th className="p-2 text-left">Code</th>
+                              <th className="p-2 text-left">Usage</th>
                               <th className="p-2 text-left">Status</th>
+                              <th className="p-2 text-left">Used by</th>
                             </tr>
                           </thead>
                           <tbody>
                             {detail.vouchers.map((v) => (
                               <tr key={v.id} className="border-t border-border">
                                 <td className="p-2 font-mono">{v.code}</td>
+                                <td className="p-2">{v.usedCount}/{v.usageLimit}</td>
                                 <td className="p-2">
-                                  {v.used ? (
-                                    <span className="text-muted-foreground">Used</span>
+                                  {v.usedCount >= v.usageLimit ? (
+                                    <span className="text-muted-foreground">Used up</span>
                                   ) : v.active ? (
                                     <span className="text-success">Available</span>
                                   ) : (
                                     <span>Inactive</span>
+                                  )}
+                                </td>
+                                <td className="p-2">
+                                  {v.redemptions.length === 0 ? (
+                                    <span className="text-muted-foreground">—</span>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {v.redemptions.map((r) => (
+                                        <div key={r.id} className="text-[11px] leading-tight">
+                                          <span className="font-medium">{r.userName}</span>
+                                          <span className="text-muted-foreground"> ({r.userEmail})</span>
+                                        </div>
+                                      ))}
+                                    </div>
                                   )}
                                 </td>
                               </tr>
@@ -256,11 +295,22 @@ function AdminVouchers() {
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label>Max uses per voucher</Label>
+              <Input
+                type="number"
+                min={1}
+                max={100}
+                value={form.usageLimitPerVoucher}
+                onChange={(e) => setForm({ ...form, usageLimitPerVoucher: Number(e.target.value) })}
+              />
+            </div>
+            <div className="space-y-1.5">
               <Label>Expiry</Label>
               <Input type="date" value={form.expiry} onChange={(e) => setForm({ ...form, expiry: e.target.value })} />
             </div>
             <p className="text-xs text-muted-foreground">
-              Each voucher is 32 alphanumeric characters, single use per user.
+              Each voucher is 32 alphanumeric characters and can be used up to the configured limit.
+              Each user may redeem only one voucher code per batch.
             </p>
           </div>
           <DialogFooter>

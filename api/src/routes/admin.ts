@@ -1,7 +1,7 @@
 import { Router } from "express";
 import multer from "multer";
 import { z } from "zod";
-import { ExamStatus, PaymentStatus, Role, UserStatus } from "@prisma/client";
+import { Prisma, ExamStatus, PaymentStatus, Role, UserStatus } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import {
@@ -9,6 +9,7 @@ import {
   formatQuestion,
   examStatusFromUi,
   questionTypeFromUi,
+  questionTypeToUi,
 } from "../lib/formatters.js";
 import { env } from "../lib/env.js";
 import { generateQuestionsWithGroq } from "../services/groq.js";
@@ -39,11 +40,13 @@ const examBodySchema = z.object({
   fullscreen: z.boolean(),
   tabDetection: z.boolean(),
   webcam: z.boolean(),
+  questionPoolId: z.string().nullable().optional(),
 });
 
 const questionBodySchema = z.object({
   examId: z.string().optional().nullable(),
   title: z.string().min(5),
+  code: z.string().optional().nullable(),
   type: z.string(),
   options: z.array(z.string()).min(2),
   correctAnswer: z.string(),
@@ -53,6 +56,18 @@ const questionBodySchema = z.object({
   tags: z.array(z.string()).optional(),
   imageUrl: z.string().optional().nullable(),
 });
+
+/** Bulk / pool CSV rows may use shorter titles. */
+const poolImportQuestionSchema = questionBodySchema.extend({
+  title: z.string().min(1),
+});
+
+function zodErrorMessage(err: z.ZodError) {
+  const first = err.errors[0];
+  if (!first) return "Invalid request data";
+  const path = first.path.length ? `${first.path.join(".")}: ` : "";
+  return `${path}${first.message}`;
+}
 
 function parseDate(s?: string) {
   return s ? new Date(s) : null;
@@ -119,14 +134,30 @@ router.get("/charts", async (_req, res) => {
 
 // ——— Exams ———
 router.get("/exams", async (_req, res) => {
-  const exams = await prisma.exam.findMany({ orderBy: { updatedAt: "desc" } });
-  res.json({ exams: exams.map(formatExam) });
+  const exams = await prisma.exam.findMany({
+    include: { questionPool: { select: { id: true, name: true } } },
+    orderBy: { updatedAt: "desc" },
+  });
+  res.json({
+    exams: exams.map((exam) => ({
+      ...formatExam(exam),
+      questionPoolName: exam.questionPool?.name ?? null,
+    })),
+  });
 });
 
 router.get("/exams/:id", async (req, res) => {
-  const exam = await prisma.exam.findUnique({ where: { id: String(req.params.id) } });
+  const exam = await prisma.exam.findUnique({
+    where: { id: String(req.params.id) },
+    include: { questionPool: { select: { id: true, name: true } } },
+  });
   if (!exam) return res.status(404).json({ error: "Exam not found" });
-  res.json({ exam: formatExam(exam) });
+  res.json({
+    exam: {
+      ...formatExam(exam),
+      questionPoolName: exam.questionPool?.name ?? null,
+    },
+  });
 });
 
 router.post("/exams", async (req, res) => {
@@ -149,6 +180,7 @@ router.post("/exams", async (req, res) => {
         fullscreen: body.fullscreen,
         tabDetection: body.tabDetection,
         webcam: body.webcam,
+        questionPoolId: body.questionPoolId ?? null,
       },
     });
     res.status(201).json({ exam: formatExam(exam) });
@@ -178,6 +210,7 @@ router.put("/exams/:id", async (req, res) => {
         fullscreen: body.fullscreen,
         tabDetection: body.tabDetection,
         webcam: body.webcam,
+        questionPoolId: body.questionPoolId ?? null,
       },
     });
     res.json({ exam: formatExam(exam) });
@@ -221,8 +254,49 @@ router.post("/exams/:id/duplicate", async (req, res) => {
 });
 
 router.delete("/exams/:id", async (req, res) => {
-  await prisma.exam.delete({ where: { id: String(req.params.id) } });
-  res.json({ ok: true });
+  const id = String(req.params.id);
+  try {
+    const exam = await prisma.exam.findUnique({ where: { id }, select: { id: true } });
+    if (!exam) {
+      res.status(404).json({ error: "Exam not found" });
+      return;
+    }
+
+    const [paidPayments, certificates] = await Promise.all([
+      prisma.payment.count({ where: { examId: id, status: PaymentStatus.PAID } }),
+      prisma.certificate.count({ where: { examId: id } }),
+    ]);
+
+    if (paidPayments > 0) {
+      res.status(409).json({
+        error: "Cannot delete an exam with paid purchases. Unpublish or archive it instead.",
+      });
+      return;
+    }
+
+    if (certificates > 0) {
+      res.status(409).json({
+        error: "Cannot delete an exam with issued certificates. Archive it instead.",
+      });
+      return;
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.examAttempt.deleteMany({ where: { examId: id } });
+      await tx.payment.deleteMany({ where: { examId: id } });
+      await tx.question.updateMany({ where: { examId: id }, data: { examId: null } });
+      await tx.exam.delete({ where: { id } });
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2003") {
+      res.status(409).json({ error: "Cannot delete this exam because related records still exist." });
+      return;
+    }
+    console.error("DELETE /exams/:id failed:", err);
+    res.status(500).json({ error: "Could not delete exam" });
+  }
 });
 
 // ——— Questions ———
@@ -287,18 +361,92 @@ router.post("/questions/assign", async (req, res) => {
   }
 });
 
-router.get("/questions", async (req, res) => {
+function parseQuestionListQuery(req: { query: Record<string, unknown> }) {
   const examId = typeof req.query.examId === "string" ? req.query.examId : undefined;
-  const questions = await prisma.question.findMany({
-    where: examId ? { examId } : undefined,
-    include: { exam: { select: { id: true, title: true } } },
-    orderBy: { updatedAt: "desc" },
-  });
+  const search = typeof req.query.search === "string" ? req.query.search.trim() : "";
+  const type = typeof req.query.type === "string" && req.query.type !== "all" ? req.query.type : undefined;
+  const topic = typeof req.query.topic === "string" && req.query.topic !== "all" ? req.query.topic : undefined;
+  const difficulty =
+    typeof req.query.difficulty === "string" && req.query.difficulty !== "all" ? req.query.difficulty : undefined;
+  const all = req.query.all === "1" || req.query.all === "true";
+  const limit = all
+    ? 10_000
+    : Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+  const offset = all ? 0 : Math.max(Number(req.query.offset) || 0, 0);
+  return { examId, search, type, topic, difficulty, limit, offset, all };
+}
+
+function buildQuestionListWhere(params: {
+  examId?: string;
+  search?: string;
+  type?: string;
+  topic?: string;
+  difficulty?: string;
+}): Prisma.QuestionWhereInput {
+  const where: Prisma.QuestionWhereInput = {};
+  if (params.examId === "unassigned") where.examId = null;
+  else if (params.examId) where.examId = params.examId;
+  if (params.type) where.type = questionTypeFromUi(params.type);
+  if (params.topic) where.topic = params.topic;
+  if (params.difficulty) where.difficulty = params.difficulty;
+  if (params.search) {
+    where.OR = [
+      { title: { contains: params.search } },
+      { topic: { contains: params.search } },
+    ];
+  }
+  return where;
+}
+
+router.get("/questions/filter-options", async (req, res) => {
+  const examId = typeof req.query.examId === "string" ? req.query.examId : undefined;
+  const where = buildQuestionListWhere({ examId });
+  const [topicRows, typeRows, difficultyRows] = await Promise.all([
+    prisma.question.findMany({
+      where,
+      select: { topic: true },
+      distinct: ["topic"],
+      orderBy: { topic: "asc" },
+    }),
+    prisma.question.findMany({
+      where,
+      select: { type: true },
+      distinct: ["type"],
+    }),
+    prisma.question.findMany({
+      where,
+      select: { difficulty: true },
+      distinct: ["difficulty"],
+      orderBy: { difficulty: "asc" },
+    }),
+  ]);
   res.json({
-    questions: questions.map((q) => ({
+    topics: topicRows.map((r) => r.topic).filter((t) => t?.trim()),
+    types: [...new Set(typeRows.map((r) => questionTypeToUi(r.type)))].sort((a, b) => a.localeCompare(b)),
+    difficulties: difficultyRows.map((r) => r.difficulty).filter(Boolean),
+  });
+});
+
+router.get("/questions", async (req, res) => {
+  const { examId, search, type, topic, difficulty, limit, offset } = parseQuestionListQuery(req);
+  const where = buildQuestionListWhere({ examId, search, type, topic, difficulty });
+  const [total, rows] = await Promise.all([
+    prisma.question.count({ where }),
+    prisma.question.findMany({
+      where,
+      include: { exam: { select: { id: true, title: true } } },
+      orderBy: { updatedAt: "desc" },
+      take: limit,
+      skip: offset,
+    }),
+  ]);
+  res.json({
+    questions: rows.map((q) => ({
       ...formatQuestion(q),
       examTitle: q.exam?.title ?? null,
     })),
+    total,
+    hasMore: offset + rows.length < total,
   });
 });
 
@@ -309,6 +457,7 @@ router.post("/questions", async (req, res) => {
       data: {
         examId: body.examId || null,
         title: body.title,
+        code: body.code?.trim() || null,
         type: questionTypeFromUi(body.type),
         options: body.options,
         correctAnswer: body.correctAnswer,
@@ -333,6 +482,7 @@ router.put("/questions/:id", async (req, res) => {
       data: {
         examId: body.examId || null,
         title: body.title,
+        code: body.code?.trim() || null,
         type: questionTypeFromUi(body.type),
         options: body.options,
         correctAnswer: body.correctAnswer,
@@ -354,6 +504,24 @@ router.delete("/questions/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
+router.post("/questions/bulk-delete", async (req, res) => {
+  try {
+    const { questionIds } = z
+      .object({ questionIds: z.array(z.string()).min(1).max(1000) })
+      .parse(req.body);
+    const result = await prisma.question.deleteMany({
+      where: { id: { in: questionIds } },
+    });
+    res.json({ count: result.count });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: zodErrorMessage(err) });
+    }
+    console.error("POST /questions/bulk-delete failed:", err);
+    res.status(500).json({ error: "Could not delete questions" });
+  }
+});
+
 router.post("/questions/bulk", async (req, res) => {
   const items = z.array(questionBodySchema).parse(req.body.questions ?? req.body);
   const created = await prisma.$transaction(
@@ -362,6 +530,7 @@ router.post("/questions/bulk", async (req, res) => {
         data: {
           examId: body.examId || null,
           title: body.title,
+          code: body.code?.trim() || null,
           type: questionTypeFromUi(body.type),
           options: body.options,
           correctAnswer: body.correctAnswer,
@@ -375,6 +544,215 @@ router.post("/questions/bulk", async (req, res) => {
     ),
   );
   res.status(201).json({ count: created.length, questions: created.map(formatQuestion) });
+});
+
+// ——— Question pools ———
+router.get("/question-pools", async (_req, res) => {
+  const pools = await prisma.questionPool.findMany({
+    include: { _count: { select: { items: true } } },
+    orderBy: { updatedAt: "desc" },
+  });
+  res.json({
+    pools: pools.map((p) => ({
+      id: p.id,
+      name: p.name,
+      description: p.description ?? "",
+      active: p.active,
+      questionCount: p._count.items,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
+    })),
+  });
+});
+
+router.get("/question-pools/:id", async (req, res) => {
+  const pool = await prisma.questionPool.findUnique({
+    where: { id: String(req.params.id) },
+    include: {
+      items: {
+        include: { question: true },
+        orderBy: { createdAt: "desc" },
+      },
+    },
+  });
+  if (!pool) return res.status(404).json({ error: "Question pool not found" });
+  res.json({
+    pool: {
+      id: pool.id,
+      name: pool.name,
+      description: pool.description ?? "",
+      active: pool.active,
+      questionCount: pool.items.length,
+      questions: pool.items.map((it) => formatQuestion(it.question)),
+    },
+  });
+});
+
+const QUESTION_IMPORT_BATCH = 100;
+
+function questionCreateData(body: z.infer<typeof poolImportQuestionSchema>) {
+  return {
+    examId: body.examId || null,
+    title: body.title.trim(),
+    code: body.code?.trim() || null,
+    type: questionTypeFromUi(body.type),
+    options: body.options,
+    correctAnswer: body.correctAnswer,
+    explanation: body.explanation ?? "",
+    difficulty: body.difficulty,
+    topic: body.topic,
+    tags: body.tags ?? ["pool-import"],
+    imageUrl: body.imageUrl || null,
+  };
+}
+
+async function createQuestionsForPool(newQuestions: z.infer<typeof poolImportQuestionSchema>[]) {
+  if (!newQuestions.length) return [] as string[];
+  const ids: string[] = [];
+  for (let i = 0; i < newQuestions.length; i += QUESTION_IMPORT_BATCH) {
+    const batch = newQuestions.slice(i, i + QUESTION_IMPORT_BATCH);
+    const created = await Promise.all(
+      batch.map((body) => prisma.question.create({ data: questionCreateData(body) })),
+    );
+    ids.push(...created.map((q) => q.id));
+  }
+  return ids;
+}
+
+async function syncPoolQuestionIds(poolId: string, questionIds: string[]) {
+  const existing = await prisma.questionPoolItem.findMany({
+    where: { poolId },
+    select: { questionId: true },
+  });
+  const existingSet = new Set(existing.map((row) => row.questionId));
+  const targetSet = new Set(questionIds);
+  const toAdd = questionIds.filter((id) => !existingSet.has(id));
+  const toRemove = [...existingSet].filter((id) => !targetSet.has(id));
+
+  if (toRemove.length) {
+    await prisma.questionPoolItem.deleteMany({
+      where: { poolId, questionId: { in: toRemove } },
+    });
+  }
+  if (toAdd.length) {
+    await prisma.questionPoolItem.createMany({
+      data: toAdd.map((questionId) => ({ poolId, questionId })),
+      skipDuplicates: true,
+    });
+  }
+}
+
+router.post("/question-pools", async (req, res) => {
+  try {
+    const body = z
+      .object({
+        name: z.string().min(2),
+        description: z.string().optional(),
+        active: z.boolean().optional().default(true),
+        questionIds: z.array(z.string()).optional().default([]),
+        newQuestions: z.array(poolImportQuestionSchema).optional().default([]),
+      })
+      .parse(req.body);
+
+    const importedIds = await createQuestionsForPool(body.newQuestions);
+    const allQuestionIds = [...new Set([...body.questionIds, ...importedIds])];
+
+    if (allQuestionIds.length === 0) {
+      return res.status(400).json({ error: "Add questions by selection or bulk CSV import" });
+    }
+
+    const pool = await prisma.questionPool.create({
+      data: {
+        name: body.name,
+        description: body.description ?? "",
+        active: body.active,
+      },
+    });
+    await syncPoolQuestionIds(pool.id, allQuestionIds);
+
+    res.status(201).json({
+      pool: {
+        id: pool.id,
+        name: pool.name,
+        description: pool.description ?? "",
+        active: pool.active,
+        questionCount: allQuestionIds.length,
+      },
+      importedCount: importedIds.length,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: zodErrorMessage(err) });
+    }
+    console.error("POST /question-pools failed:", err);
+    const message = err instanceof Error ? err.message : "Could not create question pool";
+    res.status(500).json({
+      error: message.includes("Unknown argument `code`")
+        ? "Database schema is out of date. Run: npx prisma db push && npx prisma generate, then restart the API."
+        : "Could not create question pool",
+    });
+  }
+});
+
+router.put("/question-pools/:id", async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const body = z
+      .object({
+        name: z.string().min(2),
+        description: z.string().optional(),
+        active: z.boolean().optional().default(true),
+        questionIds: z.array(z.string()).optional().default([]),
+        newQuestions: z.array(poolImportQuestionSchema).optional().default([]),
+      })
+      .parse(req.body);
+
+    const pool = await prisma.questionPool.findUnique({ where: { id } });
+    if (!pool) return res.status(404).json({ error: "Question pool not found" });
+
+    const importedIds = await createQuestionsForPool(body.newQuestions);
+    const allQuestionIds = [...new Set([...body.questionIds, ...importedIds])];
+
+    if (allQuestionIds.length === 0) {
+      return res.status(400).json({ error: "Add questions by selection or bulk CSV import" });
+    }
+
+    await prisma.questionPool.update({
+      where: { id },
+      data: {
+        name: body.name,
+        description: body.description ?? "",
+        active: body.active,
+      },
+    });
+    await syncPoolQuestionIds(id, allQuestionIds);
+
+    const updated = await prisma.questionPool.findUnique({
+      where: { id },
+      include: { _count: { select: { items: true } } },
+    });
+    res.json({
+      pool: {
+        id: updated!.id,
+        name: updated!.name,
+        description: updated!.description ?? "",
+        active: updated!.active,
+        questionCount: updated!._count.items,
+      },
+      importedCount: importedIds.length,
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) {
+      return res.status(400).json({ error: zodErrorMessage(err) });
+    }
+    console.error("PUT /question-pools failed:", err);
+    res.status(500).json({ error: "Could not update question pool" });
+  }
+});
+
+router.delete("/question-pools/:id", async (req, res) => {
+  await prisma.questionPool.delete({ where: { id: String(req.params.id) } });
+  res.json({ ok: true });
 });
 
 // ——— AI (Groq) ———
@@ -468,6 +846,8 @@ router.get("/voucher-batches", async (_req, res) => {
   res.json({
     batches: batches.map((b) => {
       const used = b.vouchers.filter((v) => v.usedCount > 0).length;
+      const totalUses = b.vouchers.reduce((sum, v) => sum + v.usedCount, 0);
+      const totalUsageLimit = b.vouchers.reduce((sum, v) => sum + v.usageLimit, 0);
       return {
         id: b.id,
         label: b.label ?? `Batch ${b.createdAt.toISOString().slice(0, 10)}`,
@@ -478,6 +858,9 @@ router.get("/voucher-batches", async (_req, res) => {
         quantity: b.quantity,
         usedCount: used,
         availableCount: b.vouchers.length - used,
+        totalUses,
+        totalUsageLimit,
+        usageLimitPerVoucher: b.vouchers[0]?.usageLimit ?? 1,
         createdAt: b.createdAt.toISOString(),
       };
     }),
@@ -489,7 +872,14 @@ router.get("/voucher-batches/:id", async (req, res) => {
     where: { id: String(req.params.id) },
     include: {
       vouchers: {
-        include: { redemptions: { select: { userId: true, createdAt: true } } },
+        include: {
+          redemptions: {
+            include: {
+              user: { select: { id: true, fullName: true, email: true } },
+            },
+            orderBy: { createdAt: "desc" },
+          },
+        },
         orderBy: { code: "asc" },
       },
     },
@@ -504,12 +894,22 @@ router.get("/voucher-batches/:id", async (req, res) => {
       expiry: batch.expiry.toISOString().slice(0, 10),
       active: batch.active,
       quantity: batch.quantity,
+      usageLimitPerVoucher: batch.vouchers[0]?.usageLimit ?? 1,
       vouchers: batch.vouchers.map((v) => ({
         id: v.id,
         code: v.code,
         used: v.usedCount > 0,
+        usedCount: v.usedCount,
+        usageLimit: v.usageLimit,
         active: v.active,
         redeemedAt: v.redemptions[0]?.createdAt?.toISOString() ?? null,
+        redemptions: v.redemptions.map((r) => ({
+          id: r.id,
+          usedAt: r.createdAt.toISOString(),
+          userId: r.userId,
+          userName: r.user.fullName,
+          userEmail: r.user.email,
+        })),
       })),
     },
   });
@@ -523,6 +923,7 @@ router.post("/voucher-batches", async (req, res) => {
       discountType: z.string(),
       discountAmount: z.number(),
       expiry: z.string(),
+      usageLimitPerVoucher: z.number().int().min(1).max(100).optional().default(1),
       active: z.boolean().default(true),
       examIds: z.array(z.string()).optional(),
     })
@@ -546,7 +947,7 @@ router.post("/voucher-batches", async (req, res) => {
           code,
           discountType: body.discountType,
           discountAmount: body.discountAmount,
-          usageLimit: 1,
+          usageLimit: body.usageLimitPerVoucher,
           expiry: new Date(body.expiry),
           active: body.active,
           exams: body.examIds?.length
@@ -569,10 +970,10 @@ router.get("/voucher-batches/:id/csv", async (req, res) => {
   if (!batch) return res.status(404).json({ error: "Batch not found" });
 
   const lines = [
-    "code,discount_type,discount_amount,expiry,status",
+    "code,discount_type,discount_amount,expiry,used_count,usage_limit,status",
     ...batch.vouchers.map((v) => {
-      const status = v.usedCount > 0 ? "used" : v.active ? "available" : "inactive";
-      return `${v.code},${v.discountType},${Number(v.discountAmount)},${v.expiry.toISOString().slice(0, 10)},${status}`;
+      const status = v.usedCount >= v.usageLimit ? "used_up" : v.active ? "available" : "inactive";
+      return `${v.code},${v.discountType},${Number(v.discountAmount)},${v.expiry.toISOString().slice(0, 10)},${v.usedCount},${v.usageLimit},${status}`;
     }),
   ];
   res.setHeader("Content-Type", "text/csv");

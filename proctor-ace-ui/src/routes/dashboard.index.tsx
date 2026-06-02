@@ -1,5 +1,4 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
 import {
   BookOpen, Award, Clock, TrendingUp, ArrowRight, CheckCircle2, XCircle, Sparkles,
 } from "lucide-react";
@@ -10,23 +9,20 @@ import { apiAuth } from "@/lib/api-auth";
 import { formatAttemptDateTime } from "@/lib/format-datetime";
 import { usePageDataLoad } from "@/contexts/page-load-context";
 
+type DashboardData = {
+  user: { name: string } | null;
+  stats: { examsPurchased: number; certificates: number; passRate: string };
+  recentAttempts: { id: string; examTitle: string; startedAt: string; score: number; result: string }[];
+};
+
 export const Route = createFileRoute("/dashboard/")({
   component: DashboardHome,
 });
 
 function DashboardHome() {
-  const [data, setData] = useState<{
-    user: { name: string } | null;
-    stats: { examsPurchased: number; certificates: number; passRate: string };
-    recentAttempts: { id: string; examTitle: string; startedAt: string; score: number; result: string }[];
-  } | null>(null);
-
-  usePageDataLoad(
+  const { data } = usePageDataLoad(
     "dashboard-home",
-    async () => {
-      const d = await apiAuth<NonNullable<typeof data>>("/api/candidate/dashboard");
-      setData(d);
-    },
+    () => apiAuth<DashboardData>("/api/candidate/dashboard"),
     [],
   );
 

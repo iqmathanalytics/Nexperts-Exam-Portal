@@ -8,12 +8,50 @@ import { apiAuth } from "@/lib/api-auth";
 import { usePageDataLoad } from "@/contexts/page-load-context";
 import { useAdminSearch } from "@/contexts/admin-search-context";
 
+type AdminHomeData = {
+  stats: {
+    totalUsers: number;
+    activeExams: number;
+    revenue: number;
+    passed: number;
+    failed: number;
+    ongoing: number;
+    violations: number;
+    voucherUsage: number;
+  };
+  revenueChartData: { month: string; revenue: number }[];
+  examActivityData: { day: string; attempts: number }[];
+  payments: { user: string; exam: string; amount: number; status: string; date: string }[];
+  results: { candidate: string; exam: string; score: number; result: string }[];
+};
+
 export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
 });
 
 function AdminDashboard() {
-  const [stats, setStats] = useState({
+  const { query: search } = useAdminSearch();
+  const { data } = usePageDataLoad(
+    "admin-home",
+    async (): Promise<AdminHomeData> => {
+      const [statsRes, chartsRes, paymentsRes, resultsRes] = await Promise.all([
+        apiAuth<AdminHomeData["stats"]>("/api/admin/stats"),
+        apiAuth<{ revenueChartData: AdminHomeData["revenueChartData"]; examActivityData: AdminHomeData["examActivityData"] }>("/api/admin/charts"),
+        apiAuth<{ payments: AdminHomeData["payments"] }>("/api/admin/payments"),
+        apiAuth<{ results: { candidate: string; exam: string; score: number; result: string }[] }>("/api/admin/results"),
+      ]);
+      return {
+        stats: statsRes,
+        revenueChartData: chartsRes.revenueChartData,
+        examActivityData: chartsRes.examActivityData,
+        payments: paymentsRes.payments.slice(0, 5),
+        results: resultsRes.results.slice(0, 5),
+      };
+    },
+    [],
+  );
+
+  const stats = data?.stats ?? {
     totalUsers: 0,
     activeExams: 0,
     revenue: 0,
@@ -22,12 +60,11 @@ function AdminDashboard() {
     ongoing: 0,
     violations: 0,
     voucherUsage: 0,
-  });
-  const [revenueChartData, setRevenueChartData] = useState<{ month: string; revenue: number }[]>([]);
-  const [examActivityData, setExamActivityData] = useState<{ day: string; attempts: number }[]>([]);
-  const [payments, setPayments] = useState<{ user: string; exam: string; amount: number; status: string; date: string }[]>([]);
-  const [results, setResults] = useState<{ candidate: string; exam: string; score: number; result: string }[]>([]);
-  const { query: search } = useAdminSearch();
+  };
+  const revenueChartData = data?.revenueChartData ?? [];
+  const examActivityData = data?.examActivityData ?? [];
+  const payments = data?.payments ?? [];
+  const results = data?.results ?? [];
 
   const q = search.toLowerCase().trim();
   const filteredResults = q
@@ -46,24 +83,6 @@ function AdminDashboard() {
           String(p.status).toLowerCase().includes(q),
       )
     : payments;
-
-  usePageDataLoad(
-    "admin-home",
-    async () => {
-      const [statsRes, chartsRes, paymentsRes, resultsRes] = await Promise.all([
-        apiAuth<typeof stats>("/api/admin/stats"),
-        apiAuth<{ revenueChartData: typeof revenueChartData; examActivityData: typeof examActivityData }>("/api/admin/charts"),
-        apiAuth<{ payments: typeof payments }>("/api/admin/payments"),
-        apiAuth<{ results: { candidate: string; exam: string; score: number; result: string }[] }>("/api/admin/results"),
-      ]);
-      setStats(statsRes);
-      setRevenueChartData(chartsRes.revenueChartData);
-      setExamActivityData(chartsRes.examActivityData);
-      setPayments(paymentsRes.payments.slice(0, 5));
-      setResults(resultsRes.results.slice(0, 5));
-    },
-    [],
-  );
 
   return (
     <div className="space-y-6">

@@ -1,12 +1,12 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
+import { useState } from "react";
 import { Plus, Copy, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, StatusBadge, DataToolbar } from "@/components/admin-bits";
 import { Button } from "@/components/ui/button";
 import { apiAuth } from "@/lib/api-auth";
 import { useAdminSearch } from "@/contexts/admin-search-context";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 import { ApiError } from "@/lib/api-client";
 import type { ExamFormState } from "@/lib/types";
 
@@ -19,21 +19,12 @@ export const Route = createFileRoute("/admin/exams/")({
 function AdminExams() {
   const navigate = useNavigate();
   const { query: search, setQuery: setSearch } = useAdminSearch();
-  const [exams, setExams] = useState<ExamRow[]>([]);
-
-  const load = useCallback(async () => {
-    const d = await apiAuth<{ exams: ExamRow[] }>("/api/admin/exams");
-    setExams(d.exams);
-  }, []);
-
-  usePageDataLoad(
+  const invalidateSession = useInvalidateSession();
+  const { data: exams = [] } = usePageDataLoad(
     "admin-exams",
     async () => {
-      try {
-        await load();
-      } catch {
-        toast.error("Failed to load exams");
-      }
+      const d = await apiAuth<{ exams: ExamRow[] }>("/api/admin/exams");
+      return d.exams;
     },
     [],
   );
@@ -41,6 +32,8 @@ function AdminExams() {
   const filtered = exams.filter(
     (e) => e.title.toLowerCase().includes(search.toLowerCase()) || e.category.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const refresh = () => invalidateSession("admin-exams");
 
   const togglePublish = async (e: ExamRow) => {
     const next = e.status === "Published" ? "Draft" : "Published";
@@ -50,7 +43,7 @@ function AdminExams() {
         body: JSON.stringify({ status: next }),
       });
       toast.success(next === "Published" ? "Exam published" : "Exam unpublished");
-      load();
+      refresh();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Update failed");
     }
@@ -60,7 +53,7 @@ function AdminExams() {
     try {
       await apiAuth(`/api/admin/exams/${id}/duplicate`, { method: "POST" });
       toast.success("Exam duplicated");
-      load();
+      refresh();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Duplicate failed");
     }
@@ -71,7 +64,7 @@ function AdminExams() {
     try {
       await apiAuth(`/api/admin/exams/${id}`, { method: "DELETE" });
       toast.success("Exam deleted");
-      load();
+      refresh();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Delete failed");
     }

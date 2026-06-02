@@ -42,26 +42,16 @@ export const Route = createFileRoute("/admin/users/$userId")({
 
 function UserProfile() {
   const { userId } = Route.useParams();
-  const [data, setData] = useState<UserDetail | null>(null);
-  const [resetExamId, setResetExamId] = useState<string>("all");
-  const [resetting, setResetting] = useState(false);
-
-  const load = async () => {
-    const d = await apiAuth<UserDetail>(`/api/admin/users/${userId}`);
-    setData(d);
-  };
-
-  usePageDataLoad(
+  const { data, refetch } = usePageDataLoad(
     "admin-user-detail",
     async () => {
-      try {
-        await load();
-      } catch {
-        toast.error("User not found");
-      }
+      return apiAuth<UserDetail>(`/api/admin/users/${userId}`);
     },
     [userId],
   );
+
+  const [resetExamId, setResetExamId] = useState<string>("all");
+  const [resetting, setResetting] = useState(false);
 
   const examOptions = data
     ? [...new Map(
@@ -80,7 +70,7 @@ function UserProfile() {
         { method: "POST", body: JSON.stringify(body) },
       );
       toast.success(res.message || `Removed ${res.deleted} attempt(s)`);
-      load();
+      void refetch();
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Reset failed");
     } finally {

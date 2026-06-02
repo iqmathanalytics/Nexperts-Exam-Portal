@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin-bits";
 import { ExamForm, examToForm } from "@/components/exam-form";
@@ -25,18 +25,27 @@ function EditExam() {
   const [form, setForm] = useState<ExamFormState | null>(null);
   const [saving, setSaving] = useState(false);
 
-  usePageDataLoad(
+  const { data: pools = [] } = usePageDataLoad(
+    "question-pools-list",
+    async () => {
+      const d = await apiAuth<{ pools: { id: string; name: string; questionCount: number }[] }>("/api/admin/question-pools");
+      return d.pools;
+    },
+    [],
+  );
+
+  const { data: examData } = usePageDataLoad(
     "edit-exam",
     async () => {
-      try {
-        const d = await apiAuth<{ exam: ExamFormState & { id: string } }>(`/api/admin/exams/${examId}`);
-        setForm(examToForm(d.exam));
-      } catch {
-        toast.error("Exam not found");
-      }
+      const d = await apiAuth<{ exam: ExamFormState & { id: string } }>(`/api/admin/exams/${examId}`);
+      return examToForm(d.exam);
     },
     [examId],
   );
+
+  useEffect(() => {
+    if (examData) setForm(examData);
+  }, [examData]);
 
   if (!form) return null;
 
@@ -71,7 +80,13 @@ function EditExam() {
         Questions are linked to this exam in the Question Bank. Set &quot;Total questions&quot; on the exam to how many are served per attempt (up to the number you add).
       </p>
       <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-        <ExamForm form={form} onChange={setForm} onSubmit={submit} submitLabel={saving ? "Saving…" : "Save exam"} />
+        <ExamForm
+          form={form}
+          onChange={setForm}
+          onSubmit={submit}
+          pools={pools}
+          submitLabel={saving ? "Saving…" : "Save exam"}
+        />
       </div>
     </div>
   );

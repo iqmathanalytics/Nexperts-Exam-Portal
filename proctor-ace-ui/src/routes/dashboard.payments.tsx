@@ -6,11 +6,11 @@ import { PageHeader } from "@/components/dashboard-bits";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { InvoicePreview, type InvoicePreviewData } from "@/components/invoice-preview";
 import { apiAuth, downloadAuthPdf } from "@/lib/api-auth";
 import { ApiError } from "@/lib/api-client";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 
 export const Route = createFileRoute("/dashboard/payments")({
   component: Payments,
@@ -29,14 +29,24 @@ type PaymentRow = {
 };
 
 function Payments() {
+  const invalidateSession = useInvalidateSession();
   const [viewId, setViewId] = useState<string | null>(null);
   const [invoicePreview, setInvoicePreview] = useState<InvoicePreviewData | null>(null);
   const [invoiceLoading, setInvoiceLoading] = useState(false);
-  const [payments, setPayments] = useState<PaymentRow[]>([]);
   const [downloading, setDownloading] = useState<string | null>(null);
   const [resuming, setResuming] = useState<string | null>(null);
+  const [cancelling, setCancelling] = useState<string | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<PaymentRow | null>(null);
+  const { data: payments = [] } = usePageDataLoad(
+    "payments",
+    async () => {
+      const d = await apiAuth<{ payments: PaymentRow[] }>("/api/payments/my");
+      return d.payments;
+    },
+    [],
+  );
 
-  const viewPayment = payments.find((p) => p.id === viewId) ?? null;
+  const viewPayment = viewId ? payments.find((p) => p.id === viewId) : undefined;
 
   const openInvoice = async (paymentId: string) => {
     setViewId(paymentId);
@@ -70,15 +80,6 @@ function Payments() {
     }
   };
 
-  usePageDataLoad(
-    "payments",
-    async () => {
-      const d = await apiAuth<{ payments: PaymentRow[] }>("/api/payments/my");
-      setPayments(d.payments);
-    },
-    [],
-  );
-
   const resumePayment = async (paymentId: string) => {
     setResuming(paymentId);
     try {
@@ -92,6 +93,21 @@ function Payments() {
       toast.error(e instanceof ApiError ? e.message : "Could not resume payment");
     } finally {
       setResuming(null);
+    }
+  };
+
+  const cancelPayment = async () => {
+    if (!cancelTarget) return;
+    setCancelling(cancelTarget.id);
+    try {
+      await apiAuth(`/api/payments/${cancelTarget.id}/cancel`, { method: "POST" });
+      toast.success("Payment cancelled");
+      setCancelTarget(null);
+      invalidateSession("payments");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Could not cancel payment");
+    } finally {
+      setCancelling(null);
     }
   };
 
@@ -151,14 +167,24 @@ function Payments() {
                   <TableCell className="text-right font-semibold">MYR {p.amount}</TableCell>
                   <TableCell className="text-right">
                     {p.status === "PENDING" ? (
-                      <Button
-                        size="sm"
-                        className="bg-gradient-emerald text-white"
-                        disabled={resuming === p.id}
-                        onClick={() => resumePayment(p.id)}
-                      >
-                        {resuming === p.id ? "Opening…" : "Resume payment"}
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={cancelling === p.id || resuming === p.id}
+                          onClick={() => setCancelTarget(p)}
+                        >
+                          {cancelling === p.id ? "Cancelling…" : "Cancel payment"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-gradient-emerald text-white"
+                          disabled={resuming === p.id || cancelling === p.id}
+                          onClick={() => resumePayment(p.id)}
+                        >
+                          {resuming === p.id ? "Opening…" : "Resume payment"}
+                        </Button>
+                      </div>
                     ) : (
                       <div className="flex justify-end gap-1">
                         <Button variant="ghost" size="sm" onClick={() => openInvoice(p.id)}>
@@ -183,6 +209,31 @@ function Payments() {
           </TableBody>
         </Table>
       </div>
+
+      <Dialog open={!!cancelTarget} onOpenChange={(o) => !o && setCancelTarget(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel payment?</DialogTitle>
+            <DialogDescription>
+              This will cancel your pending checkout for{" "}
+              <span className="font-medium text-foreground">{cancelTarget?.examTitle}</span>. You can
+              schedule and pay again later from Available Exams.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCancelTarget(null)}>
+              Keep payment
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={!!cancelling}
+              onClick={() => void cancelPayment()}
+            >
+              {cancelling ? "Cancelling…" : "Cancel payment"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!viewId} onOpenChange={(o) => !o && closeInvoice()}>
         <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">

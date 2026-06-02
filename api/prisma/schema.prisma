@@ -99,6 +99,7 @@ model Exam {
   fullscreen    Boolean    @default(true)
   tabDetection  Boolean    @default(true)
   webcam        Boolean    @default(true)
+  questionPoolId String?
   createdAt     DateTime   @default(now())
   updatedAt     DateTime   @updatedAt
 
@@ -107,12 +108,14 @@ model Exam {
   attempts      ExamAttempt[]
   vouchers      VoucherExam[]
   certificates  Certificate[]
+  questionPool  QuestionPool? @relation(fields: [questionPoolId], references: [id], onDelete: SetNull)
 }
 
 model Question {
   id            String       @id @default(cuid())
   examId        String?
   title         String       @db.Text
+  code          String?      @db.Text
   type          QuestionType
   options       Json
   correctAnswer String
@@ -125,6 +128,32 @@ model Question {
   updatedAt     DateTime     @updatedAt
 
   exam Exam? @relation(fields: [examId], references: [id], onDelete: SetNull)
+  pools QuestionPoolItem[]
+  attemptSelections AttemptQuestion[]
+}
+
+model QuestionPool {
+  id          String   @id @default(cuid())
+  name        String
+  description String?  @db.Text
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items QuestionPoolItem[]
+  exams Exam[]
+}
+
+model QuestionPoolItem {
+  poolId     String
+  questionId String
+  createdAt  DateTime @default(now())
+
+  pool     QuestionPool @relation(fields: [poolId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([poolId, questionId])
+  @@index([questionId])
 }
 
 model VoucherBatch {
@@ -218,6 +247,20 @@ model ExamAttempt {
   user       User                  @relation(fields: [userId], references: [id])
   exam       Exam                  @relation(fields: [examId], references: [id])
   violations ProctoringViolation[]
+  selectedQuestions AttemptQuestion[]
+}
+
+model AttemptQuestion {
+  attemptId   String
+  questionId  String
+  orderIndex  Int
+  createdAt   DateTime @default(now())
+
+  attempt  ExamAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@id([attemptId, questionId])
+  @@index([attemptId, orderIndex])
 }
 
 model Certificate {

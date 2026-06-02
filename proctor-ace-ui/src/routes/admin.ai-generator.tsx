@@ -48,18 +48,16 @@ function AiGenerator() {
   const [difficulty, setDifficulty] = useState("Intermediate");
   const [qType, setQType] = useState("Mixed");
   const [examId, setExamId] = useState("");
-  const [exams, setExams] = useState<{ id: string; title: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState<GeneratedQ[]>([]);
   const [lastSource, setLastSource] = useState<"groq" | "template" | null>(null);
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [groqConfigured, setGroqConfigured] = useState<boolean | null>(null);
-
-  usePageDataLoad(
-    "ai-generator",
+  const { data: examOptions = [] } = usePageDataLoad(
+    "ai-generator-exams",
     async () => {
       const d = await apiAuth<{ exams: { id: string; title: string }[] }>("/api/admin/exams");
-      setExams(d.exams.map((e) => ({ id: e.id, title: e.title })));
+      return d.exams.map((e) => ({ id: e.id, title: e.title }));
     },
     [],
   );
@@ -176,7 +174,7 @@ function AiGenerator() {
     }
   };
 
-  const examTitle = exams.find((e) => e.id === examId)?.title;
+  const examTitle = examOptions.find((e) => e.id === examId)?.title;
   const canGenerate = sourceMode === "topic" ? topic.trim().length > 0 : Boolean(pdfFile);
 
   return (
@@ -303,7 +301,7 @@ function AiGenerator() {
               <Select value={examId || undefined} onValueChange={setExamId}>
                 <SelectTrigger><SelectValue placeholder="Select exam before accepting" /></SelectTrigger>
                 <SelectContent>
-                  {exams.map((e) => (
+                  {examOptions.map((e) => (
                     <SelectItem key={e.id} value={e.id}>{e.title}</SelectItem>
                   ))}
                 </SelectContent>

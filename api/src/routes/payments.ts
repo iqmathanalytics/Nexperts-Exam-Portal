@@ -17,6 +17,7 @@ import {
   validateScheduledSlot,
   formatScheduleForApi,
   attendByFromPurchase,
+  getSchedulePhase,
 } from "../services/exam-scheduling.js";
 
 const router = Router();
@@ -57,7 +58,9 @@ router.post("/validate-voucher", requireAuth(Role.CANDIDATE), async (req: Authed
     if (!exam) return res.status(404).json({ error: "Exam not found" });
     const subtotal = Number(exam.price);
     const result = await validateVoucher(code, examId, subtotal, req.user!.sub);
-    if (!result.valid) return res.json({ valid: false, discount: 0 });
+    if (!result.valid) {
+      return res.json({ valid: false, discount: 0, message: result.reason ?? "Invalid voucher" });
+    }
     res.json({ valid: true, discount: result.discount, total: subtotal - result.discount });
   } catch {
     res.status(400).json({ error: "Invalid request" });
@@ -106,18 +109,17 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
     let voucherId: string | undefined;
     if (voucherCode) {
       const v = await validateVoucher(voucherCode, examId, subtotal, userId);
-      if (!v.valid) return res.status(400).json({ error: "Invalid voucher" });
+      if (!v.valid) return res.status(400).json({ error: v.reason ?? "Invalid voucher" });
       subtotal -= v.discount;
       voucherId = v.voucherId;
     }
 
+    let schedule: { startAt: Date; endAt: Date };
     const [hh, mm] = scheduledStartTime.split(":").map(Number);
     if (Number.isNaN(hh) || Number.isNaN(mm)) {
       return res.status(400).json({ error: "Invalid time slot" });
     }
     const scheduledStartTimeNorm = `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
-
-    let schedule: { startAt: Date; endAt: Date };
     try {
       schedule = validateScheduledSlot(scheduledDate, scheduledStartTimeNorm, exam.duration);
     } catch (e) {
@@ -318,6 +320,97 @@ router.post("/:id/resume", requireAuth(Role.CANDIDATE), async (req: AuthedReques
   } catch (e) {
     console.error("Resume payment error:", e);
     res.status(500).json({ error: "Could not resume payment" });
+  }
+});
+
+router.post("/:id/cancel", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
+  try {
+    const paymentId = String(req.params.id);
+    const userId = req.user!.sub;
+    const payment = await prisma.payment.findFirst({
+      where: { id: paymentId, userId, status: PaymentStatus.PENDING },
+    });
+    if (!payment) return res.status(404).json({ error: "Pending payment not found" });
+
+    const stripe = getStripe();
+    if (stripe && payment.stripeSessionId) {
+      try {
+        const existing = await stripe.checkout.sessions.retrieve(payment.stripeSessionId);
+        if (existing.status === "open") {
+          await stripe.checkout.sessions.expire(payment.stripeSessionId);
+        }
+      } catch (e) {
+        console.warn("Stripe session expire failed:", e);
+      }
+    }
+
+    await prisma.payment.delete({ where: { id: payment.id } });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Cancel payment error:", e);
+    res.status(500).json({ error: "Could not cancel payment" });
+  }
+});
+
+router.post("/start-immediately", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
+  try {
+    const { paymentId } = z.object({ paymentId: z.string() }).parse(req.body);
+    const userId = req.user!.sub;
+
+    const payment = await prisma.payment.findFirst({
+      where: { id: paymentId, userId, status: PaymentStatus.PAID },
+      include: { exam: true },
+    });
+    if (!payment) return res.status(404).json({ error: "Paid exam booking not found" });
+
+    const inProgress = await prisma.examAttempt.findFirst({
+      where: { userId, examId: payment.examId, result: "IN_PROGRESS" },
+    });
+    if (inProgress) {
+      return res.status(409).json({ error: "Finish or cancel your in-progress attempt first" });
+    }
+
+    const used = await prisma.examAttempt.count({
+      where: { userId, examId: payment.examId, result: { not: "IN_PROGRESS" } },
+    });
+    if (used >= payment.exam.maxAttempts) {
+      return res.status(403).json({ error: "No attempts remaining" });
+    }
+
+    const attendBy = payment.attendByAt ?? attendByFromPurchase(payment.createdAt);
+    if (new Date() > attendBy) {
+      return res.status(403).json({ error: "Your one-year booking window has expired" });
+    }
+
+    const phase = getSchedulePhase(payment.scheduledStartAt, payment.scheduledEndAt, {
+      hasInProgress: false,
+      attemptsExhausted: used >= payment.exam.maxAttempts,
+      attendByAt: attendBy,
+    });
+
+    if (phase === "ready" && used === 0) {
+      return res.status(409).json({ error: "Your exam is already open — use Start Exam" });
+    }
+    if (phase === "booking_expired") {
+      return res.status(403).json({ error: "Your one-year booking window has expired" });
+    }
+
+    const startAt = new Date();
+    const endAt = new Date(startAt.getTime() + payment.exam.duration * 60 * 1000);
+
+    const updated = await prisma.payment.update({
+      where: { id: payment.id },
+      data: { scheduledStartAt: startAt, scheduledEndAt: endAt },
+    });
+
+    res.json({
+      ok: true,
+      schedulePhase: "ready",
+      ...formatScheduleForApi(updated.scheduledStartAt!, updated.scheduledEndAt!),
+    });
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.flatten() });
+    return res.status(400).json({ error: e instanceof Error ? e.message : "Could not start immediately" });
   }
 });
 

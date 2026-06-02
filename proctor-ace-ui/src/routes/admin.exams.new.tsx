@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/admin-bits";
 import { ExamForm, getDefaultExamForm } from "@/components/exam-form";
 import { apiAuth } from "@/lib/api-auth";
+import { usePageDataLoad } from "@/contexts/page-load-context";
 import { ApiError } from "@/lib/api-client";
 
 export const Route = createFileRoute("/admin/exams/new")({
@@ -16,6 +17,15 @@ function CreateExam() {
   const navigate = useNavigate();
   const [form, setForm] = useState(getDefaultExamForm());
   const [saving, setSaving] = useState(false);
+
+  const { data: pools = [] } = usePageDataLoad(
+    "question-pools-list",
+    async () => {
+      const d = await apiAuth<{ pools: { id: string; name: string; questionCount: number }[] }>("/api/admin/question-pools");
+      return d.pools;
+    },
+    [],
+  );
 
   const submit = async () => {
     setSaving(true);
@@ -37,7 +47,13 @@ function CreateExam() {
       </Button>
       <PageHeader title="Create exam" sub="Configure exam settings and proctoring rules." />
       <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-        <ExamForm form={form} onChange={setForm} onSubmit={submit} submitLabel={saving ? "Saving…" : "Create exam"} />
+        <ExamForm
+          form={form}
+          onChange={setForm}
+          onSubmit={submit}
+          pools={pools}
+          submitLabel={saving ? "Saving…" : "Create exam"}
+        />
       </div>
     </div>
   );

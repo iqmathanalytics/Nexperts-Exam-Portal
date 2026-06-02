@@ -9,8 +9,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ProctoringCapture } from "@/components/proctoring-capture";
 import { FullscreenExitModal } from "@/components/fullscreen-exit-modal";
+import { ExamSubmitConfirmModal } from "@/components/exam-submit-confirm-modal";
 import { ViolationsLimitDialog } from "@/components/violations-limit-dialog";
 import { acquireExamCamera, enterFullscreen, getExamCameraStream, releaseExamCamera } from "@/lib/exam-media-stream";
+import { QuestionCodeBlock } from "@/components/question-code-block";
 import { parseStoredExamSession, storeExamSession, type ExamStartPayload } from "@/lib/exam-session";
 import { ExamReloadDialog } from "@/components/exam-reload-dialog";
 import { useExamReloadGuard } from "@/hooks/use-exam-reload-guard";
@@ -33,6 +35,7 @@ function TakeExam() {
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [fullscreenExitOpen, setFullscreenExitOpen] = useState(false);
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const [violationsLimitOpen, setViolationsLimitOpen] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
@@ -152,6 +155,22 @@ function TakeExam() {
     [exitExam],
   );
 
+  const requestSubmit = useCallback(() => {
+    if (session?.exam.fullscreen && document.fullscreenElement) {
+      setSubmitConfirmOpen(true);
+      return;
+    }
+    void submitExam(false);
+  }, [session?.exam.fullscreen, submitExam]);
+
+  const confirmSubmit = useCallback(async () => {
+    setSubmitConfirmOpen(false);
+    if (document.fullscreenElement) {
+      await document.exitFullscreen().catch(() => {});
+    }
+    await submitExam(false);
+  }, [submitExam]);
+
   const handleFlagged = useCallback(() => {
     if (flaggedHandledRef.current || leavingRef.current) return;
     flaggedHandledRef.current = true;
@@ -194,17 +213,17 @@ function TakeExam() {
     if (!session?.exam.fullscreen || !examStarted || leavingRef.current) return;
 
     const onFsChange = () => {
-      if (leavingRef.current || submittingRef.current) return;
+      if (leavingRef.current || submittingRef.current || submitConfirmOpen) return;
       if (!document.fullscreenElement) {
         setFullscreenExitOpen(true);
       }
     };
     document.addEventListener("fullscreenchange", onFsChange);
     return () => document.removeEventListener("fullscreenchange", onFsChange);
-  }, [session?.exam.fullscreen, examStarted]);
+  }, [session?.exam.fullscreen, examStarted, submitConfirmOpen]);
 
   useEffect(() => {
-    if (!examStarted || fullscreenExitOpen || violationsLimitOpen || leavingRef.current) return;
+    if (!examStarted || fullscreenExitOpen || violationsLimitOpen || submitConfirmOpen || leavingRef.current) return;
     const t = setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
@@ -216,7 +235,7 @@ function TakeExam() {
       });
     }, 1000);
     return () => clearInterval(t);
-  }, [examStarted, fullscreenExitOpen, violationsLimitOpen, submitExam]);
+  }, [examStarted, fullscreenExitOpen, violationsLimitOpen, submitConfirmOpen, submitExam]);
 
   useEffect(() => {
     const opts = { capture: true };
@@ -265,6 +284,12 @@ function TakeExam() {
         onReload={confirmReload}
       />
       <ViolationsLimitDialog open={violationsLimitOpen} examTitle={session.exam.title} />
+      <ExamSubmitConfirmModal
+        open={submitConfirmOpen && !leavingRef.current}
+        examTitle={session.exam.title}
+        onCancel={() => setSubmitConfirmOpen(false)}
+        onConfirm={() => void confirmSubmit()}
+      />
       <FullscreenExitModal
         open={fullscreenExitOpen && !leavingRef.current}
         onResumed={() => setFullscreenExitOpen(false)}
@@ -283,7 +308,7 @@ function TakeExam() {
             attemptId={attemptId}
             settings={session.exam}
             mediaStream={mediaStream}
-            paused={fullscreenExitOpen || violationsLimitOpen}
+            paused={fullscreenExitOpen || violationsLimitOpen || submitConfirmOpen}
             onWarningsChange={setWarnings}
             onViolation={(type) => toast.warning(type)}
             onFlagged={handleFlagged}
@@ -306,13 +331,14 @@ function TakeExam() {
 
         <main
           className="flex-1 overflow-y-auto p-6 pb-48"
-          style={{ pointerEvents: fullscreenExitOpen || violationsLimitOpen ? "none" : "auto" }}
+          style={{ pointerEvents: fullscreenExitOpen || violationsLimitOpen || submitConfirmOpen ? "none" : "auto" }}
         >
           <div className="mx-auto max-w-2xl space-y-8">
             {session.questions.map((q, i) => (
               <div key={q.id} className="rounded-xl border border-border bg-card p-5">
                 <p className="text-sm text-muted-foreground">Question {i + 1}</p>
                 <p className="mt-2 font-medium">{q.title}</p>
+                <QuestionCodeBlock code={"code" in q ? q.code : null} />
                 {"imageUrl" in q && q.imageUrl && (
                   <img src={q.imageUrl as string} alt="" className="mt-3 max-h-48 rounded-md border border-border object-contain" />
                 )}
@@ -333,11 +359,11 @@ function TakeExam() {
           </div>
         </main>
 
-        <footer className="shrink-0 border-t p-4" style={{ pointerEvents: fullscreenExitOpen || violationsLimitOpen ? "none" : "auto" }}>
+        <footer className="shrink-0 border-t p-4" style={{ pointerEvents: fullscreenExitOpen || violationsLimitOpen || submitConfirmOpen ? "none" : "auto" }}>
           <Button
             className="w-full bg-gradient-emerald text-white"
-            disabled={submitting || fullscreenExitOpen || violationsLimitOpen || !examStarted}
-            onClick={() => void submitExam(false)}
+            disabled={submitting || fullscreenExitOpen || violationsLimitOpen || submitConfirmOpen || !examStarted}
+            onClick={requestSubmit}
           >
             {submitting ? "Submitting…" : "Submit exam"}
           </Button>

@@ -38,37 +38,44 @@ type FilterOptions = {
   students: { id: string; name: string }[];
 };
 
+type MonitoringData = {
+  sessions: Session[];
+  activityLog: ActivityRow[];
+  filterOptions: FilterOptions;
+};
+
 export const Route = createFileRoute("/admin/monitoring")({
   component: ExamMonitoring,
 });
 
 function ExamMonitoring() {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [activityLog, setActivityLog] = useState<ActivityRow[]>([]);
-  const [filterOptions, setFilterOptions] = useState<FilterOptions>({ exams: [], students: [] });
   const [filterExam, setFilterExam] = useState("all");
   const [filterStudent, setFilterStudent] = useState("all");
   const { query: globalSearch } = useAdminSearch();
 
-  const fetchMonitoring = async () => {
-    const d = await apiAuth<{
-      sessions: Session[];
-      activityLog: ActivityRow[];
-      filterOptions: FilterOptions;
-    }>("/api/admin/monitoring");
-    setSessions(d.sessions);
-    setActivityLog(d.activityLog);
-    setFilterOptions(d.filterOptions ?? { exams: [], students: [] });
-  };
+  const { data, refetch } = usePageDataLoad(
+    "monitoring",
+    async (): Promise<MonitoringData> => {
+      const d = await apiAuth<MonitoringData>("/api/admin/monitoring");
+      return {
+        sessions: d.sessions,
+        activityLog: d.activityLog,
+        filterOptions: d.filterOptions ?? { exams: [], students: [] },
+      };
+    },
+    [],
+  );
 
-  usePageDataLoad("monitoring", fetchMonitoring, []);
+  const sessions = data?.sessions ?? [];
+  const activityLog = data?.activityLog ?? [];
+  const filterOptions = data?.filterOptions ?? { exams: [], students: [] };
 
   useEffect(() => {
     const t = setInterval(() => {
-      void fetchMonitoring().catch(() => {});
+      void refetch();
     }, 10000);
     return () => clearInterval(t);
-  }, []);
+  }, [refetch]);
 
   const examOptions = useMemo(() => {
     const fromApi = filterOptions.exams ?? [];
@@ -220,7 +227,7 @@ function ExamMonitoring() {
                     <td>{row.candidate}</td>
                     <td className="text-muted-foreground">{row.exam ?? "—"}</td>
                     <td className="flex items-center gap-2">
-                      {row.event.includes("Tab") && <Monitor className="h-3 w-3" />}
+                      {row.event.includes("Tab") && <Monitor className="h-3 w-3" /> }
                       {row.event.includes("Fullscreen") && <Maximize2 className="h-3 w-3" />}
                       {row.event.toLowerCase().includes("phone") && <Smartphone className="h-3 w-3" />}
                       {row.event.toLowerCase().includes("person") && <AlertTriangle className="h-3 w-3" />}

@@ -5,7 +5,7 @@ import { AdminSearchProvider, useAdminSearch } from "@/contexts/admin-search-con
 import { useEffect, useState } from "react";
 import {
   LayoutDashboard, BookOpen, HelpCircle, Sparkles, Users, CreditCard, Ticket,
-  Monitor, BarChart3, Award, FileText, Settings, LogOut, Bell, Search, ChevronDown,
+  Monitor, BarChart3, Award, FileText, Settings, LogOut, Bell, Search, ChevronDown, Link2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -29,6 +29,7 @@ const nav: NavItem[] = [
   { to: "/admin/users", label: "Users", icon: Users },
   { to: "/admin/payments", label: "Payments", icon: CreditCard },
   { to: "/admin/vouchers", label: "Vouchers", icon: Ticket },
+  { to: "/admin/question-pools", label: "Question Pools", icon: Link2 },
   { to: "/admin/monitoring", label: "Exam Monitoring", icon: Monitor },
   { to: "/admin/results", label: "Results", icon: BarChart3 },
   { to: "/admin/certificates", label: "Certificates", icon: Award },
@@ -93,22 +94,19 @@ export function AdminLayout() {
     <PageLoadProvider>
     <AdminSearchProvider>
     <div className="flex min-h-screen bg-muted/30">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground xl:flex">
-        <div className="flex h-16 items-center border-b border-sidebar-border px-4">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground xl:flex">
+        <div className="flex h-14 shrink-0 items-center border-b border-sidebar-border px-4">
           <BrandLogo to="/admin" variant="sidebar" showText={false} />
         </div>
 
-        <nav className="flex-1 space-y-0.5 overflow-y-auto p-3">
-          <div className="px-3 pb-2 pt-2 text-[10px] uppercase tracking-[0.2em] text-sidebar-foreground/40">
-            Admin Console
-          </div>
+        <nav className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-hidden px-3 py-2">
           {nav.map(({ to, label, icon: Icon, exact }) => {
             const active = exact ? path === to : path.startsWith(to);
             return (
               <Link
                 key={to}
                 to={to as "/admin"}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
+                className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] font-medium leading-snug transition ${
                   active
                     ? "bg-sidebar-accent text-sidebar-accent-foreground shadow-glow"
                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
@@ -121,10 +119,10 @@ export function AdminLayout() {
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border p-3">
-          <div className="flex items-center gap-3 rounded-lg bg-sidebar-accent/40 p-3">
-            <Avatar className="h-9 w-9">
-              <AvatarFallback className="bg-[oklch(0.45_0.15_25)] text-white" suppressHydrationWarning>{initials}</AvatarFallback>
+        <div className="shrink-0 border-t border-sidebar-border p-3">
+          <div className="flex items-center gap-2.5 rounded-lg bg-sidebar-accent/40 p-2.5">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback className="bg-[oklch(0.45_0.15_25)] text-xs text-white" suppressHydrationWarning>{initials}</AvatarFallback>
             </Avatar>
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-medium">{name}</div>

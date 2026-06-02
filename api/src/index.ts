@@ -9,6 +9,8 @@ import attemptRoutes from "./routes/attempts.js";
 import candidateRoutes from "./routes/candidate.js";
 import certificateRoutes from "./routes/certificates.js";
 import { handleStripeWebhook } from "./routes/payments.js";
+import { connectDatabase, prisma } from "./lib/prisma.js";
+import { prismaErrorMessage, prismaErrorStatus } from "./lib/prisma-errors.js";
 
 const app = express();
 
@@ -48,9 +50,18 @@ app.post(
 
 app.use(express.json({ limit: "15mb" }));
 
-app.get("/api/health", (_req, res) => {
-  res.json({
-    ok: true,
+app.get("/api/health", async (_req, res) => {
+  let database = false;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    database = true;
+  } catch (e) {
+    console.error("Health check: database unreachable", e);
+  }
+  const ok = database;
+  res.status(ok ? 200 : 503).json({
+    ok,
+    database,
     service: "nexperts-api",
     stripe: Boolean(env.stripeSecretKey),
     groq: Boolean(env.groqApiKey),
@@ -65,7 +76,7 @@ app.use("/api/attempts", attemptRoutes);
 app.use("/api/candidate", candidateRoutes);
 app.use("/api/certificates", certificateRoutes);
 
-app.use((err: Error, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: unknown, req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err);
   const origin = req.headers.origin;
   if (
@@ -76,12 +87,31 @@ app.use((err: Error, req: express.Request, res: express.Response, _next: express
     res.setHeader("Access-Control-Allow-Credentials", "true");
   }
   if (!res.headersSent) {
-    res.status(err.message.startsWith("CORS blocked") ? 403 : 500).json({
-      error: err.message.startsWith("CORS blocked") ? err.message : "Internal server error",
+    const prismaStatus = prismaErrorStatus(err);
+    if (prismaStatus) {
+      res.status(prismaStatus).json({ error: prismaErrorMessage(err) });
+      return;
+    }
+    const message = err instanceof Error ? err.message : "";
+    res.status(message.startsWith("CORS blocked") ? 403 : 500).json({
+      error: message.startsWith("CORS blocked") ? message : "Internal server error",
     });
   }
 });
 
-app.listen(env.port, () => {
-  console.log(`API running at http://localhost:${env.port}`);
-});
+async function start() {
+  try {
+    await connectDatabase();
+    console.log("Database connected");
+  } catch (e) {
+    console.error(
+      "Database connection failed — API will start but requests will fail until TiDB is reachable.",
+      e instanceof Error ? e.message : e,
+    );
+  }
+  app.listen(env.port, () => {
+    console.log(`API running at http://localhost:${env.port}`);
+  });
+}
+
+void start();

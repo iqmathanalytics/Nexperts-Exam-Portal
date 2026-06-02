@@ -4,6 +4,7 @@ import { attendByFromPurchase } from "./exam-scheduling.js";
 import { generateInvoicePdf } from "./pdf-invoice.js";
 import { sendInvoiceEmail } from "./brevo.js";
 import { getInvoiceDetails } from "./invoice-details.js";
+import { userHasBatchVoucherAllowance } from "./voucher.js";
 
 async function buildInvoicePdfForPayment(paymentId: string) {
   const payment = await prisma.payment.findUnique({
@@ -73,6 +74,17 @@ export async function fulfillPayment(paymentId: string) {
 
   if (!existing) return null;
   if (existing.status === PaymentStatus.PAID) return existing;
+
+  if (existing.voucherId && existing.voucher?.batchId) {
+    const batchCheck = await userHasBatchVoucherAllowance(
+      existing.userId,
+      existing.voucher.batchId,
+      existing.voucherId,
+    );
+    if (!batchCheck.allowed) {
+      throw new Error(batchCheck.reason ?? "Batch voucher limit reached");
+    }
+  }
 
   const paidAt = new Date();
   const attendByAt = attendByFromPurchase(paidAt);

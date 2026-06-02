@@ -78,6 +78,20 @@ export function QuestionFormFields({ form, onChange, exams }: Props) {
         <Textarea value={form.title} onChange={(e) => onChange({ ...form, title: e.target.value })} rows={3} />
       </div>
 
+      <div className="space-y-2">
+        <Label>Code snippet (optional)</Label>
+        <Textarea
+          value={form.code ?? ""}
+          onChange={(e) => onChange({ ...form, code: e.target.value.trim() ? e.target.value : null })}
+          rows={4}
+          placeholder="Python, SQL, or other code shown below the question during the exam"
+          className="font-mono text-sm"
+        />
+        <p className="text-xs text-muted-foreground">
+          Shown as a separate code block under the question. Leave empty if not needed.
+        </p>
+      </div>
+
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-2">
           <Label>Question type</Label>
@@ -171,50 +185,8 @@ export function QuestionFormFields({ form, onChange, exams }: Props) {
   );
 }
 
-export const QUESTION_CSV_TEMPLATE = `title,type,topic,difficulty,option1,option2,option3,option4,correctAnswer,explanation
-"What is a VPC?","Multiple Choice","Cloud Networking","Intermediate","Virtual Private Cloud","Virtual Public Cluster","Version Control Protocol","Visual Process Chart","Virtual Private Cloud","A VPC isolates cloud resources in a private network."
-"HTTPS always uses port 443.","True/False","Security","Beginner","True","False","","","True","HTTPS default port is 443."
-"A team must design a highly available API.","Scenario","Architecture","Advanced","Use multi-AZ load balancer with auto scaling","Single large VM","Local SQLite only","Disable monitoring","Use multi-AZ load balancer with auto scaling","HA requires redundancy across zones."
-`;
-
-export function parseQuestionCsv(text: string, examId: string): QuestionFormState[] {
-  const lines = text.trim().split("\n").filter(Boolean);
-  if (lines.length < 2) return [];
-  const header = lines[0].toLowerCase();
-  const hasHeader = header.includes("title") && header.includes("correctanswer");
-  const rows = hasHeader ? lines.slice(1) : lines;
-
-  return rows.map((line) => {
-    const cols = line.match(/("([^"]|"")*"|[^,]*)/g)?.map((c) => c.replace(/^"|"$/g, "").replace(/""/g, '"').trim()) ?? line.split(",");
-    const [title, type, topic, difficulty, o1, o2, o3, o4, correctAnswer, explanation] = cols;
-    const qType = (type?.trim() || "Multiple Choice") as QuestionFormState["type"];
-    let options: string[] = [];
-    if (qType === "True/False") {
-      options = ["True", "False"];
-    } else {
-      options = [o1, o2, o3, o4].filter(Boolean) as string[];
-      if (options.length < 2) options = ["Option A", "Option B", "Option C", "Option D"];
-    }
-    return {
-      examId,
-      title: title?.trim() || "Imported question",
-      type: qType,
-      options,
-      correctAnswer: correctAnswer?.trim() || options[0],
-      explanation: explanation?.trim() || "",
-      difficulty: difficulty?.trim() || "Intermediate",
-      topic: topic?.trim() || "General",
-      tags: ["imported"],
-    };
-  });
-}
-
-export function downloadCsvTemplate() {
-  const blob = new Blob([QUESTION_CSV_TEMPLATE], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "questions-template.csv";
-  a.click();
-  URL.revokeObjectURL(url);
-}
+export {
+  QUESTION_CSV_TEMPLATE,
+  downloadCsvTemplate,
+  parseQuestionCsv,
+} from "@/lib/parse-question-csv";

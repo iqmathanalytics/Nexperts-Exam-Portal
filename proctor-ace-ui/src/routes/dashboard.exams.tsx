@@ -49,7 +49,6 @@ function AvailableExams() {
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [levelFilter, setLevelFilter] = useState("all");
-  const [exams, setExams] = useState<Exam[]>([]);
   const [active, setActive] = useState<Exam | null>(null);
   const [voucher, setVoucher] = useState("");
   const [discount, setDiscount] = useState(0);
@@ -60,19 +59,18 @@ function AvailableExams() {
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<ScheduleSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const { data: exams = [] } = usePageDataLoad(
+    "available-exams",
+    async () => {
+      const d = await apiAuth<{ exams: Exam[] }>("/api/candidate/available-exams");
+      return d.exams ?? [];
+    },
+    [],
+  );
 
   useEffect(() => {
     if (canceled) toast.info("Checkout canceled");
   }, [canceled]);
-
-  usePageDataLoad(
-    "available-exams",
-    async () => {
-      const d = await apiAuth<{ exams: Exam[] }>("/api/candidate/available-exams");
-      setExams(d.exams ?? []);
-    },
-    [],
-  );
 
   const categories = useMemo(() => {
     return [...new Set(exams.map((e) => e.category).filter(Boolean))].sort();
@@ -147,7 +145,7 @@ function AvailableExams() {
   const applyVoucher = async () => {
     if (!active || !voucher) return;
     try {
-      const res = await apiAuth<{ valid: boolean; discount: number }>("/api/payments/validate-voucher", {
+      const res = await apiAuth<{ valid: boolean; discount: number; message?: string }>("/api/payments/validate-voucher", {
         method: "POST",
         body: JSON.stringify({ code: voucher, examId: active.id }),
       });
@@ -156,7 +154,7 @@ function AvailableExams() {
         toast.success(`Voucher applied — MYR ${res.discount} off`);
       } else {
         setDiscount(0);
-        toast.error("Invalid voucher");
+        toast.error(res.message ?? "Invalid voucher");
       }
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Voucher check failed");

@@ -1,13 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useCallback, useState } from "react";
-import { apiAuth, downloadAuthCsv } from "@/lib/api-auth";
-import { useAdminSearch } from "@/contexts/admin-search-context";
-import { usePageDataLoad } from "@/contexts/page-load-context";
-import { ApiError } from "@/lib/api-client";
+import { useState } from "react";
 import { Download, Eye, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, StatusBadge, DataToolbar } from "@/components/admin-bits";
 import { Button } from "@/components/ui/button";
+import { apiAuth, downloadAuthCsv } from "@/lib/api-auth";
+import { useAdminSearch } from "@/contexts/admin-search-context";
+import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
+import { ApiError } from "@/lib/api-client";
 
 type UserRow = { id: string; name: string; email: string; phone: string; icPassport: string; status: string; examsTaken: number; violations: number };
 
@@ -18,14 +18,15 @@ export const Route = createFileRoute("/admin/users/")({
 function AdminUsers() {
   const navigate = useNavigate();
   const { query: search, setQuery: setSearch } = useAdminSearch();
-  const [users, setUsers] = useState<UserRow[]>([]);
-
-  const load = useCallback(async () => {
-    const d = await apiAuth<{ users: UserRow[] }>("/api/admin/users");
-    setUsers(d.users);
-  }, []);
-
-  usePageDataLoad("admin-users", load, []);
+  const invalidateSession = useInvalidateSession();
+  const { data: users = [] } = usePageDataLoad(
+    "admin-users",
+    async () => {
+      const d = await apiAuth<{ users: UserRow[] }>("/api/admin/users");
+      return d.users;
+    },
+    [],
+  );
 
   const filtered = users.filter(
     (u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()),
@@ -36,7 +37,7 @@ function AdminUsers() {
     try {
       await apiAuth(`/api/admin/users/${u.id}/status`, { method: "PATCH", body: JSON.stringify({ status: next }) });
       toast.success(next === "SUSPENDED" ? "User suspended" : "User reactivated");
-      load();
+      invalidateSession("admin-users");
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Update failed");
     }

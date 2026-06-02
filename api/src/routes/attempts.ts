@@ -4,13 +4,62 @@ import { AttemptResult, PaymentStatus, Role } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { analyzeProctoringFrame } from "../services/proctoring-analyze.js";
-import { getSchedulePhase } from "../services/exam-scheduling.js";
+import { getSchedulePhase, computeAttemptEndsAt, isSlotAlignedStart } from "../services/exam-scheduling.js";
 
 const violationDedupMs = 10_000;
 const multiplePersonsDedupMs = 30_000;
 const lastViolationByAttempt = new Map<string, Record<string, number>>();
 
 const router = Router();
+
+function shuffleInPlace<T>(items: T[]): T[] {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+async function ensureAttemptQuestions(
+  attemptIdValue: string,
+  examId: string,
+  questionCount: number,
+  questionPoolId?: string | null,
+) {
+  const existing = await prisma.attemptQuestion.findMany({
+    where: { attemptId: attemptIdValue },
+    include: { question: true },
+    orderBy: { orderIndex: "asc" },
+  });
+  if (existing.length > 0) return existing.map((a) => a.question);
+
+  let candidates = questionPoolId
+    ? await prisma.question.findMany({
+        where: {
+          pools: { some: { poolId: questionPoolId } },
+        },
+      })
+    : await prisma.question.findMany({
+        where: { examId },
+      });
+
+  if (candidates.length === 0) {
+    candidates = buildFallbackQuestions(examId, questionCount);
+  }
+  const selected = shuffleInPlace([...candidates]).slice(0, questionCount);
+
+  if (!selected.some((q) => q.id.startsWith("fallback-"))) {
+    await prisma.attemptQuestion.createMany({
+      data: selected.map((q, idx) => ({
+        attemptId: attemptIdValue,
+        questionId: q.id,
+        orderIndex: idx,
+      })),
+      skipDuplicates: true,
+    });
+  }
+  return selected;
+}
 
 function attemptId(req: AuthedRequest) {
   return String(req.params.id);
@@ -28,20 +77,23 @@ async function buildExamStartPayload(
     fullscreen: boolean;
     tabDetection: boolean;
     webcam: boolean;
+    questionPoolId?: string | null;
   },
   examId: string,
-  scheduledEndAt?: Date | null,
+  schedule?: { scheduledStartAt?: Date | null; scheduledEndAt?: Date | null },
 ) {
-  let questions = await prisma.question.findMany({
-    where: { examId },
-    take: exam.questions,
-  });
-  if (questions.length === 0) {
-    questions = buildFallbackQuestions(examId, exam.questions);
-  }
-  const endsAt =
-    scheduledEndAt ??
-    new Date(attempt.startedAt.getTime() + exam.duration * 60 * 1000);
+  const questions = await ensureAttemptQuestions(
+    attempt.id,
+    examId,
+    exam.questions,
+    exam.questionPoolId ?? null,
+  );
+  const endsAt = computeAttemptEndsAt(
+    attempt.startedAt,
+    exam.duration,
+    schedule?.scheduledStartAt,
+    schedule?.scheduledEndAt,
+  );
   return {
     attemptId: attempt.id,
     exam: {
@@ -57,6 +109,7 @@ async function buildExamStartPayload(
     questions: questions.map((q) => ({
       id: q.id,
       title: q.title,
+      code: q.code ?? null,
       type: q.type,
       options: q.options as string[],
       imageUrl: q.imageUrl ?? null,
@@ -126,12 +179,10 @@ router.post("/start", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, re
     }
 
     if (inProgress) {
-      const payload = await buildExamStartPayload(
-        inProgress,
-        exam,
-        examId,
-        paid.scheduledEndAt,
-      );
+      const payload = await buildExamStartPayload(inProgress, exam, examId, {
+        scheduledStartAt: paid.scheduledStartAt,
+        scheduledEndAt: paid.scheduledEndAt,
+      });
       return res.json({ ...payload, resumed: true });
     }
 
@@ -139,7 +190,23 @@ router.post("/start", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, re
       data: { userId, examId, result: AttemptResult.IN_PROGRESS },
     });
 
-    const payload = await buildExamStartPayload(attempt, exam, examId, paid.scheduledEndAt);
+    if (paid.scheduledStartAt && !isSlotAlignedStart(paid.scheduledStartAt)) {
+      const attemptEnd = new Date(attempt.startedAt.getTime() + exam.duration * 60 * 1000);
+      await prisma.payment.update({
+        where: { id: paid.id },
+        data: {
+          scheduledStartAt: attempt.startedAt,
+          scheduledEndAt: attemptEnd,
+        },
+      });
+      paid.scheduledStartAt = attempt.startedAt;
+      paid.scheduledEndAt = attemptEnd;
+    }
+
+    const payload = await buildExamStartPayload(attempt, exam, examId, {
+      scheduledStartAt: paid.scheduledStartAt,
+      scheduledEndAt: paid.scheduledEndAt,
+    });
     res.json(payload);
   } catch {
     res.status(400).json({ error: "Could not start exam" });
@@ -156,12 +223,10 @@ router.get("/session/:id", requireAuth(Role.CANDIDATE), async (req: AuthedReques
     where: { userId: req.user!.sub, examId: attempt.examId, status: PaymentStatus.PAID },
     orderBy: { createdAt: "desc" },
   });
-  const payload = await buildExamStartPayload(
-    attempt,
-    attempt.exam,
-    attempt.examId,
-    paid?.scheduledEndAt,
-  );
+  const payload = await buildExamStartPayload(attempt, attempt.exam, attempt.examId, {
+    scheduledStartAt: paid?.scheduledStartAt,
+    scheduledEndAt: paid?.scheduledEndAt,
+  });
   res.json(payload);
 });
 
@@ -277,8 +342,12 @@ router.post("/:id/submit", requireAuth(Role.CANDIDATE), async (req: AuthedReques
   });
   if (!attempt?.exam) return res.status(404).json({ error: "Attempt not found" });
 
-  const questions = await prisma.question.findMany({ where: { examId: attempt.examId } });
-  const qs = questions.length ? questions : buildFallbackQuestions(attempt.examId, attempt.exam.questions);
+  const qs = await ensureAttemptQuestions(
+    attempt.id,
+    attempt.examId,
+    attempt.exam.questions,
+    attempt.exam.questionPoolId ?? null,
+  );
 
   let correct = 0;
   for (const q of qs) {
@@ -326,6 +395,7 @@ function buildFallbackQuestions(examId: string, count: number) {
     id: `fallback-${examId}-${i}`,
     examId,
     title: `Sample question ${i + 1}: Select the best answer for this certification item.`,
+    code: null,
     type: "MULTIPLE_CHOICE" as const,
     options: ["Option A", "Option B", "Option C", "Option D"],
     correctAnswer: "Option A",

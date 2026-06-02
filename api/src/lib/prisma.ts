@@ -9,3 +9,9 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+/** Verify DB on API startup (dev-friendly; logs clear message if TiDB is unreachable). */
+export async function connectDatabase() {
+  await prisma.$connect();
+  await prisma.$queryRaw`SELECT 1`;
+}

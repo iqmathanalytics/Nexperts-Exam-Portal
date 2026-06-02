@@ -23,6 +23,7 @@ const defaultForm: ExamFormState = {
   fullscreen: true,
   tabDetection: true,
   webcam: true,
+  questionPoolId: null,
 };
 
 export function getDefaultExamForm(): ExamFormState {
@@ -37,11 +38,13 @@ export function ExamForm({
   form,
   onChange,
   onSubmit,
+  pools = [],
   submitLabel = "Save exam",
 }: {
   form: ExamFormState;
   onChange: (next: ExamFormState) => void;
   onSubmit: () => void;
+  pools?: { id: string; name: string; questionCount: number }[];
   submitLabel?: string;
 }) {
   const set = <K extends keyof ExamFormState>(key: K, value: ExamFormState[K]) =>
@@ -86,6 +89,21 @@ export function ExamForm({
         <div className="space-y-2">
           <Label>Total questions</Label>
           <Input type="number" value={form.questions} onChange={(e) => set("questions", +e.target.value)} />
+        </div>
+        <div className="md:col-span-2 space-y-2">
+          <Label>Question pool (optional)</Label>
+          <Select value={form.questionPoolId ?? "none"} onValueChange={(v) => set("questionPoolId", v === "none" ? null : v)}>
+            <SelectTrigger><SelectValue placeholder="No pool (use exam-linked questions)" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">No pool (use exam-linked questions)</SelectItem>
+              {pools.map((p) => (
+                <SelectItem key={p.id} value={p.id}>{p.name} ({p.questionCount})</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            If a pool is selected, each attempt randomly draws this exam&apos;s total questions from that pool.
+          </p>
         </div>
         <div className="space-y-2">
           <Label>Passing %</Label>

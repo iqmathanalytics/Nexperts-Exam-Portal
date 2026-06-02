@@ -160,27 +160,87 @@ export function getSchedulePhase(
   return "expired";
 }
 
+export function isSlotAlignedStart(startAt: Date): boolean {
+  const p = klParts(startAt);
+  return p.minute % SLOT_STEP_MINUTES === 0;
+}
+
+function slotTimeString(startAt: Date): string {
+  const p = klParts(startAt);
+  return `${String(p.hour).padStart(2, "0")}:${String(p.minute).padStart(2, "0")}`;
+}
+
+function snapToDisplaySlot(at: Date): Date {
+  const p = klParts(at);
+  let hour = p.hour;
+  let minute = Math.round(p.minute / SLOT_STEP_MINUTES) * SLOT_STEP_MINUTES;
+  if (minute >= 60) {
+    hour += 1;
+    minute = 0;
+  }
+  const dateStr = klDateStringFromParts(p);
+  return parseScheduledStart(dateStr, `${hour}:${minute}`);
+}
+
+function formatKlTime(at: Date): string {
+  return new Intl.DateTimeFormat("en-MY", {
+    timeZone: TZ,
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  })
+    .format(at)
+    .replace(/\s/g, " ")
+    .toLowerCase();
+}
+
+function formatKlDateShort(at: Date): string {
+  return new Intl.DateTimeFormat("en-MY", {
+    timeZone: TZ,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  }).format(at);
+}
+
+/** Attempt timer ends at startedAt + duration, capped by a booked slot window when applicable. */
+export function computeAttemptEndsAt(
+  attemptStartedAt: Date,
+  durationMinutes: number,
+  scheduledStartAt?: Date | null,
+  scheduledEndAt?: Date | null,
+): Date {
+  const attemptEnd = new Date(attemptStartedAt.getTime() + durationMinutes * 60 * 1000);
+  if (!scheduledStartAt || !scheduledEndAt) return attemptEnd;
+  if (!isSlotAlignedStart(scheduledStartAt)) return attemptEnd;
+  return new Date(Math.min(attemptEnd.getTime(), scheduledEndAt.getTime()));
+}
+
 export function formatScheduleForApi(startAt: Date, endAt: Date) {
   const dateStr = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(startAt);
-  const startTime = new Intl.DateTimeFormat("en-GB", {
-    timeZone: TZ,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(startAt);
+  const aligned = isSlotAlignedStart(startAt);
+  const displayStart = aligned ? startAt : snapToDisplaySlot(startAt);
+  const durationMs = endAt.getTime() - startAt.getTime();
+  const displayEnd = aligned ? endAt : new Date(displayStart.getTime() + durationMs);
+
+  let scheduledLabel: string;
+  if (aligned) {
+    const startTime = slotTimeString(startAt);
+    const durationMin = Math.round(durationMs / 60_000);
+    const slots = generateSlotsForDate(dateStr, durationMin, new Date(0));
+    const match = slots.find((s) => s.startTime === startTime);
+    scheduledLabel = match
+      ? `${formatKlDateShort(startAt)} · ${match.label}`
+      : `${formatKlDateShort(startAt)} · ${formatKlTime(displayStart)} – ${formatKlTime(displayEnd)}`;
+  } else {
+    scheduledLabel = `${formatKlDateShort(displayStart)} · ${formatKlTime(displayStart)} – ${formatKlTime(displayEnd)}`;
+  }
+
   return {
     scheduledStartAt: startAt.toISOString(),
     scheduledEndAt: endAt.toISOString(),
     scheduledDate: dateStr,
-    scheduledStartTime: startTime,
-    scheduledLabel: new Intl.DateTimeFormat("en-MY", {
-      timeZone: TZ,
-      weekday: "short",
-      day: "numeric",
-      month: "short",
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    }).format(startAt),
+    scheduledStartTime: slotTimeString(aligned ? startAt : displayStart),
+    scheduledLabel,
   };
 }

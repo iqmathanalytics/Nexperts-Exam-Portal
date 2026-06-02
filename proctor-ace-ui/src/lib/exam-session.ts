@@ -10,7 +10,7 @@ export type ExamStartPayload = {
     tabDetection: boolean;
     webcam: boolean;
   };
-  questions: { id: string; title: string; type: string; options: string[] }[];
+  questions: { id: string; title: string; code?: string | null; type: string; options: string[]; imageUrl?: string | null }[];
   endsAt: string;
 };
 

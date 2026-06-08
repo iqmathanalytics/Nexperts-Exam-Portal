@@ -31,15 +31,17 @@ function klParts(date = new Date()) {
     day: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
-    hour12: false,
+    hourCycle: "h23",
   });
   const parts = fmt.formatToParts(date);
   const get = (t: string) => parts.find((p) => p.type === t)?.value ?? "0";
+  let hour = Number(get("hour"));
+  if (hour === 24) hour = 0;
   return {
     year: Number(get("year")),
     month: Number(get("month")),
     day: Number(get("day")),
-    hour: Number(get("hour")),
+    hour,
     minute: Number(get("minute")),
   };
 }
@@ -94,8 +96,7 @@ export function generateSlotsForDate(
   durationMinutes: number,
   now = new Date(),
 ): ScheduleSlot[] {
-  void durationMinutes;
-  const isToday = dateStr === todayDateString();
+  const isToday = dateStr === klDateStringFromParts(klParts(now));
   const minStart = isToday ? earliestBookableMinutes(now) : WINDOW_START_MINUTES;
   if (minStart > WINDOW_END_MINUTES) return [];
 
@@ -127,6 +128,28 @@ export function generateSlotsForDate(
     });
   }
   return slots;
+}
+
+export function addKlDays(dateStr: string, days: number): string {
+  const noon = parseScheduledStart(dateStr, "12:00");
+  const shifted = new Date(noon.getTime() + days * 86_400_000);
+  return new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(shifted);
+}
+
+/** First calendar date (from `fromDate`) that still has at least one bookable slot. */
+export function firstDateWithSlots(
+  durationMinutes: number,
+  fromDate = minBookableDateString(),
+  now = new Date(),
+): { date: string; slots: ScheduleSlot[] } {
+  let date = fromDate;
+  const max = maxBookableDateString();
+  for (let guard = 0; guard < 400 && date <= max; guard++) {
+    const slots = generateSlotsForDate(date, durationMinutes, now);
+    if (slots.length > 0) return { date, slots };
+    date = addKlDays(date, 1);
+  }
+  return { date: fromDate, slots: [] };
 }
 
 export function validateScheduledSlot(

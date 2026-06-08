@@ -17,7 +17,9 @@ import {
   resolveClientOrigin,
 } from "../lib/client-origin.js";
 import {
+  addKlDays,
   generateSlotsForDate,
+  firstDateWithSlots,
   minBookableDateString,
   maxBookableDateString,
   validateScheduledSlot,
@@ -46,11 +48,31 @@ router.get("/schedule-slots", requireAuth(Role.CANDIDATE), async (req: AuthedReq
       return res.status(404).json({ error: "Exam not found" });
     }
 
-    const date = dateParam ?? minBookableDateString();
-    const slots = generateSlotsForDate(date, exam.duration);
+    const today = minBookableDateString();
+    const requestedDate = dateParam ?? today;
+
+    let date = requestedDate;
+    let slots = generateSlotsForDate(date, exam.duration);
+    let autoAdvanced = false;
+
+    if (!dateParam) {
+      const first = firstDateWithSlots(exam.duration, today);
+      date = first.date;
+      slots = first.slots;
+      autoAdvanced = date !== today;
+    }
+
+    const nextDateWithSlots =
+      slots.length === 0 && dateParam
+        ? firstDateWithSlots(exam.duration, addKlDays(requestedDate, 1)).date
+        : undefined;
+
     res.json({
       date,
-      minDate: minBookableDateString(),
+      requestedDate,
+      autoAdvanced,
+      nextDateWithSlots,
+      minDate: today,
       maxDate: maxBookableDateString(),
       duration: exam.duration,
       timezone: "Asia/Kuala_Lumpur",

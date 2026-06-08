@@ -68,7 +68,34 @@ function AvailableExams() {
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<ScheduleSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const [slotsHint, setSlotsHint] = useState<string | null>(null);
+  const [nextDateWithSlots, setNextDateWithSlots] = useState<string | null>(null);
   const loadedScheduleDateRef = useRef<string | null>(null);
+
+  const applySlotsResponse = (d: {
+    date: string;
+    slots: ScheduleSlot[];
+    autoAdvanced?: boolean;
+    requestedDate?: string;
+    nextDateWithSlots?: string;
+  }) => {
+    setScheduleDateStr(d.date);
+    setSlots(d.slots);
+    setSelectedSlot(d.slots[0] ?? null);
+    loadedScheduleDateRef.current = d.date;
+    if (d.autoAdvanced && d.requestedDate && d.requestedDate !== d.date) {
+      setSlotsHint(
+        `Today's slots (Malaysia time, 10:00 AM–6:00 PM) are full. Showing ${d.date}.`,
+      );
+      setNextDateWithSlots(null);
+    } else if (d.slots.length === 0 && d.nextDateWithSlots) {
+      setSlotsHint(`No slots on ${d.date} (MYT).`);
+      setNextDateWithSlots(d.nextDateWithSlots);
+    } else {
+      setSlotsHint(null);
+      setNextDateWithSlots(null);
+    }
+  };
   const { data: exams = [] } = usePageDataLoad(
     "available-exams",
     async () => {
@@ -119,17 +146,22 @@ function AvailableExams() {
     setScheduleDateStr("");
     setSlots([]);
     setSelectedSlot(null);
+    setSlotsHint(null);
+    setNextDateWithSlots(null);
     setLoadingSlots(true);
-    apiAuth<{ slots: ScheduleSlot[]; minDate: string; maxDate: string; date: string }>(
-      `/api/payments/schedule-slots?examId=${active.id}`,
-    )
+    apiAuth<{
+      slots: ScheduleSlot[];
+      minDate: string;
+      maxDate: string;
+      date: string;
+      autoAdvanced?: boolean;
+      requestedDate?: string;
+      nextDateWithSlots?: string;
+    }>(`/api/payments/schedule-slots?examId=${active.id}`)
       .then((d) => {
         setMinDate(d.minDate);
         setMaxDate(d.maxDate);
-        setScheduleDateStr(d.date);
-        setSlots(d.slots);
-        setSelectedSlot(d.slots[0] ?? null);
-        loadedScheduleDateRef.current = d.date;
+        applySlotsResponse(d);
       })
       .catch(() => {
         setSlots([]);
@@ -141,15 +173,19 @@ function AvailableExams() {
   useEffect(() => {
     if (!active || !dateStr || dateStr === loadedScheduleDateRef.current) return;
     setLoadingSlots(true);
-    apiAuth<{ slots: ScheduleSlot[]; minDate: string; maxDate: string }>(
-      `/api/payments/schedule-slots?examId=${active.id}&date=${dateStr}`,
-    )
+    apiAuth<{
+      slots: ScheduleSlot[];
+      minDate: string;
+      maxDate: string;
+      date: string;
+      autoAdvanced?: boolean;
+      requestedDate?: string;
+      nextDateWithSlots?: string;
+    }>(`/api/payments/schedule-slots?examId=${active.id}&date=${dateStr}`)
       .then((d) => {
         setMinDate(d.minDate);
         setMaxDate(d.maxDate);
-        setSlots(d.slots);
-        setSelectedSlot(d.slots[0] ?? null);
-        loadedScheduleDateRef.current = dateStr;
+        applySlotsResponse(d);
       })
       .catch(() => {
         setSlots([]);
@@ -356,15 +392,28 @@ function AvailableExams() {
                   )}
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-xs">Start time (30-min slots)</Label>
-                  {!dateStr ? (
-                    <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
-                      Select a date first
-                    </p>
-                  ) : loadingSlots ? (
+                  <Label className="text-xs">Start time (30-min slots, MYT)</Label>
+                  {loadingSlots ? (
                     <p className="text-sm text-muted-foreground">Loading slots…</p>
+                  ) : !dateStr ? (
+                    <p className="rounded-lg border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      Loading schedule…
+                    </p>
                   ) : slots.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No slots available for this date.</p>
+                    <div className="space-y-2 text-sm text-muted-foreground">
+                      <p>No slots available for this date (MYT window 10:00 AM–6:00 PM).</p>
+                      {slotsHint && <p className="text-xs">{slotsHint}</p>}
+                      {nextDateWithSlots && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setScheduleDateStr(nextDateWithSlots)}
+                        >
+                          Show {nextDateWithSlots}
+                        </Button>
+                      )}
+                    </div>
                   ) : (
                     <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-2">
                       {slots.map((slot) => (
@@ -384,6 +433,9 @@ function AvailableExams() {
                         </button>
                       ))}
                     </div>
+                  )}
+                  {slotsHint && slots.length > 0 && (
+                    <p className="text-xs text-amber-700 dark:text-amber-400">{slotsHint}</p>
                   )}
                   {selectedSlot && (
                     <p className="text-xs text-muted-foreground">

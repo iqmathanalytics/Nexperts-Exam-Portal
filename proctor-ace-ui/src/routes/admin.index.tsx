@@ -135,7 +135,7 @@ function AdminDashboard() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="table-panel rounded-2xl border border-border bg-card p-5">
           <h3 className="font-display font-semibold">Recent results</h3>
           <table className="mt-4 w-full text-sm">
             <tbody>
@@ -154,7 +154,7 @@ function AdminDashboard() {
           </table>
           <Button asChild variant="ghost" size="sm" className="mt-2"><Link to="/admin/results">View all</Link></Button>
         </div>
-        <div className="rounded-2xl border border-border bg-card p-5">
+        <div className="table-panel rounded-2xl border border-border bg-card p-5">
           <h3 className="font-display font-semibold">Recent payments</h3>
           <table className="mt-4 w-full text-sm">
             <tbody>

@@ -21,7 +21,7 @@ function Landing() {
   useEffect(() => setAuth(getAuth()), []);
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="mobile-shell min-h-screen w-full overflow-x-clip bg-background">
       <SiteNavbar />
       <Hero auth={auth} />
       <Marquee />
@@ -93,7 +93,7 @@ function Hero({ auth }: { auth: AuthSession | null }) {
                 </>
               )}
             </div>
-            <div className="mt-10 flex gap-8 text-sm">
+            <div className="mt-10 flex flex-wrap gap-4 text-sm sm:gap-8">
               <Stat n="120k+" l="Candidates certified" />
               <Stat n="98.7%" l="Proctor accuracy" />
               <Stat n="42" l="Countries" />

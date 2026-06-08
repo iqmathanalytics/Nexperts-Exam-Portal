@@ -57,13 +57,13 @@ export function DataToolbar({
   if (hideInput && !action) return null;
 
   return (
-    <div className="mb-4 flex flex-wrap items-center gap-3">
+    <div className="mb-4 flex w-full min-w-0 max-w-full flex-wrap items-center gap-3">
       {!hideInput && (
         <input
           value={search}
           onChange={(e) => onSearch(e.target.value)}
           placeholder={placeholder}
-          className="h-10 min-w-[200px] flex-1 rounded-lg border border-input bg-background px-3 text-sm md:max-w-sm"
+          className="h-10 min-w-0 w-full flex-1 rounded-lg border border-input bg-background px-3 text-sm sm:min-w-[200px] md:max-w-sm"
         />
       )}
       {hideInput && search && (

@@ -79,7 +79,7 @@ export function DashboardLayout() {
 
   return (
     <PageLoadProvider>
-    <div className="flex min-h-screen bg-muted/30">
+    <div className="mobile-shell flex min-h-screen w-full bg-muted/30">
       <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
         <div className="flex h-16 items-center border-b border-sidebar-border px-5">
           <BrandLogo to="/dashboard" variant="sidebar" showText={false} />
@@ -127,8 +127,8 @@ export function DashboardLayout() {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-xl lg:px-8">
+      <main className="flex min-w-0 w-full max-w-full flex-1 flex-col">
+        <header className="sticky top-0 z-40 flex h-16 min-w-0 w-full max-w-full items-center gap-2 overflow-hidden border-b border-border bg-background/85 px-3 backdrop-blur-xl sm:gap-3 sm:px-4 lg:px-8">
           <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
             <span>Workspace</span>
             <ChevronDown className="h-3 w-3" />
@@ -149,11 +149,11 @@ export function DashboardLayout() {
           </div>
         </header>
 
-        <div className="flex-1 p-4 lg:p-8">
+        <div className="min-w-0 max-w-full flex-1 overflow-x-clip p-4 lg:p-8">
           <LayoutOutlet />
         </div>
 
-        <nav className="sticky bottom-0 z-40 grid grid-cols-5 border-t border-border bg-background/95 backdrop-blur lg:hidden">
+        <nav className="sticky bottom-0 z-40 grid w-full max-w-full grid-cols-5 border-t border-border bg-background/95 backdrop-blur lg:hidden">
           {nav.slice(0, 5).map(({ to, label, icon: Icon, exact }) => {
             const active = exact ? path === to : path.startsWith(to);
             return (

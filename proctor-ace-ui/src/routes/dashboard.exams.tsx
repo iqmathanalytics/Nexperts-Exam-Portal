@@ -262,10 +262,10 @@ function AvailableExams() {
         title="Available Exams"
         sub="Schedule an exam slot (10:00 AM–6:00 PM, Malaysia time). Paid exams appear under My Exams."
         action={
-          <div className="flex flex-wrap gap-2">
-            <div className="relative">
+          <div className="flex w-full min-w-0 max-w-full flex-wrap gap-2">
+            <div className="relative w-full min-w-0 sm:w-auto">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search exams..." className="w-64 pl-9" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search exams..." className="w-full pl-9 sm:w-64" />
             </div>
             <Popover>
               <PopoverTrigger asChild>

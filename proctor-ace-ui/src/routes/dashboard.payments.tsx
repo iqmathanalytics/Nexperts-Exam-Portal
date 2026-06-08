@@ -124,7 +124,7 @@ function Payments() {
         <Summary k="Transactions" v={String(payments.length)} l="All statuses" />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+      <div className="table-panel overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <Table>
           <TableHeader>
             <TableRow>

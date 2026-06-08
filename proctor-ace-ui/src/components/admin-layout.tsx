@@ -41,7 +41,7 @@ function AdminHeaderSearch() {
   const { query, setQuery, clearQuery } = useAdminSearch();
 
   return (
-    <div className="relative ml-auto min-w-0 flex-1 max-w-[11rem] sm:max-w-xs md:max-w-80">
+    <div className="relative hidden min-w-0 flex-1 max-w-[11rem] sm:block sm:max-w-xs md:max-w-80">
       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
       <Input
         value={query}
@@ -93,7 +93,7 @@ export function AdminLayout() {
   return (
     <PageLoadProvider>
     <AdminSearchProvider>
-    <div className="flex min-h-screen bg-muted/30">
+    <div className="mobile-shell flex min-h-screen w-full bg-muted/30">
       <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground xl:flex">
         <div className="flex h-14 shrink-0 items-center border-b border-sidebar-border px-4">
           <BrandLogo to="/admin" variant="sidebar" showText={false} />
@@ -135,8 +135,8 @@ export function AdminLayout() {
         </div>
       </aside>
 
-      <main className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b border-border bg-background/85 px-4 backdrop-blur-xl lg:px-8">
+      <main className="flex min-w-0 w-full max-w-full flex-1 flex-col">
+        <header className="sticky top-0 z-40 flex h-16 min-w-0 w-full max-w-full items-center gap-2 overflow-hidden border-b border-border bg-background/85 px-3 backdrop-blur-xl sm:gap-3 sm:px-4 lg:px-8">
           <div className="hidden items-center gap-2 text-sm text-muted-foreground md:flex">
             <span>Admin</span>
             <ChevronDown className="h-3 w-3" />
@@ -165,7 +165,7 @@ export function AdminLayout() {
           </DropdownMenu>
         </header>
 
-        <div className="flex-1 p-4 lg:p-8">
+        <div className="min-w-0 max-w-full flex-1 overflow-x-clip p-4 lg:p-8">
           <LayoutOutlet />
         </div>
       </main>

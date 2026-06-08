@@ -120,7 +120,7 @@ function AdminUsers() {
         sub="View opens the candidate profile. Download exports a CSV report (profile, attempts, payments, violations)."
       />
       <DataToolbar search={search} onSearch={setSearch} placeholder="Search users..." hideInput />
-      <div className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="table-panel overflow-hidden rounded-2xl border border-border bg-card">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-muted-foreground">

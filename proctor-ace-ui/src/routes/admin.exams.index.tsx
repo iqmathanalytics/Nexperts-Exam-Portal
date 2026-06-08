@@ -82,7 +82,7 @@ function AdminExams() {
         }
       />
       <DataToolbar search={search} onSearch={setSearch} placeholder="Search exams..." hideInput />
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+      <div className="table-panel overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-muted-foreground">

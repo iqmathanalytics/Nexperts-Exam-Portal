@@ -45,7 +45,7 @@ function HistoryPage() {
         <Tile k="Avg. score" v={total ? `${Math.round(attempts.reduce((a, b) => a + b.score, 0) / total)}%` : "—"} />
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
+      <div className="table-panel overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <Table>
           <TableHeader>
             <TableRow>

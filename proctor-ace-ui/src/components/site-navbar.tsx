@@ -25,7 +25,7 @@ export function SiteNavbar() {
   const isAdmin = auth?.role === "admin";
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/60 bg-background/75 backdrop-blur-xl">
+    <header className="sticky top-0 z-50 w-full max-w-full overflow-x-clip border-b border-border/60 bg-background/75 backdrop-blur-xl">
       <div className="container mx-auto flex h-16 items-center justify-between px-4 lg:px-8">
         <BrandLogo to={isAdmin ? "/admin" : isCandidate ? "/dashboard" : "/"} />
 

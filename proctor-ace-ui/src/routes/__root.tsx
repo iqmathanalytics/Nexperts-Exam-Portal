@@ -55,7 +55,7 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <div style={{ visibility: mounted ? "visible" : "hidden" }}>
+        <div className="mobile-shell" style={{ visibility: mounted ? "visible" : "hidden" }}>
           <Outlet />
         </div>
         <Toaster richColors position="top-right" />

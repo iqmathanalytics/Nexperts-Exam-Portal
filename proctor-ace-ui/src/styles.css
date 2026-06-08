@@ -179,11 +179,22 @@
   * {
     border-color: var(--color-border);
   }
+  html {
+    width: 100%;
+  }
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
+    width: 100%;
+  }
+  @media (max-width: 1023px) {
+    html,
+    body {
+      overflow-x: clip;
+      max-width: 100%;
+    }
   }
   h1, h2, h3, h4, h5 {
     font-family: var(--font-display);
@@ -205,6 +216,21 @@
     background-size: 48px 48px;
   }
   .text-balance { text-wrap: balance; }
+  .mobile-shell {
+    @media (max-width: 1023px) {
+      width: 100%;
+      max-width: 100%;
+      min-width: 0;
+      overflow-x: clip;
+    }
+  }
+  .table-panel {
+    @media (max-width: 1023px) {
+      overflow-x: auto;
+      max-width: 100%;
+      -webkit-overflow-scrolling: touch;
+    }
+  }
 }
 
 @keyframes float {

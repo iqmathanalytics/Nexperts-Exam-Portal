@@ -1,5 +1,6 @@
 import { useQuery, useQueryClient, type UseQueryOptions } from "@tanstack/react-query";
 import { usePageLoading } from "@/contexts/page-load-context";
+import { isClientAuthenticated } from "@/lib/auth";
 import { sessionQueryKey } from "@/lib/query-client";
 
 type SessionQueryOptions<T> = Omit<UseQueryOptions<T, Error, T>, "queryKey" | "queryFn">;
@@ -19,6 +20,7 @@ export function usePageDataLoad<T>(
   const query = useQuery({
     queryKey,
     queryFn: fetcher,
+    enabled: isClientAuthenticated(),
     ...options,
   });
 

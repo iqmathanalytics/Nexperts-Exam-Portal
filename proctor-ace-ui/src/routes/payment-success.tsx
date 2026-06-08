@@ -1,13 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CheckCircle2, ArrowRight, Receipt, Loader2, XCircle } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
-import { requireAuth } from "@/lib/auth";
 import { apiBase } from "@/lib/api-client";
+import { isClientAuthenticated } from "@/lib/auth";
+import { useInvalidateSession } from "@/contexts/page-load-context";
 
 export const Route = createFileRoute("/payment-success")({
-  beforeLoad: () => requireAuth("candidate"),
   validateSearch: (s: Record<string, unknown>) => ({
     exam: (s.exam as string) ?? "Certification exam",
     amount: Number(s.amount) || 0,
@@ -20,6 +20,8 @@ export const Route = createFileRoute("/payment-success")({
 });
 
 function PaymentSuccess() {
+  const navigate = useNavigate();
+  const invalidateSession = useInvalidateSession();
   const search = Route.useSearch();
   const [status, setStatus] = useState<"loading" | "ok" | "fail">(
     search.session_id ? "loading" : "ok",
@@ -42,13 +44,33 @@ function PaymentSuccess() {
               amount: d.amount ?? search.amount,
               invoice: d.invoiceId ?? search.invoice,
             });
+            invalidateSession("my-exams");
+            invalidateSession("payments");
+            invalidateSession("available-exams");
+            invalidateSession("dashboard-home");
           } else {
             setStatus("fail");
           }
         })
         .catch(() => setStatus("fail"));
     }
-  }, [search.session_id, search.exam, search.amount, search.invoice]);
+  }, [search.session_id, search.exam, search.amount, search.invoice, invalidateSession]);
+
+  const goToMyExams = () => {
+    if (!isClientAuthenticated()) {
+      navigate({ to: "/login" });
+      return;
+    }
+    navigate({ to: "/dashboard/my-exams" });
+  };
+
+  const goToPayments = () => {
+    if (!isClientAuthenticated()) {
+      navigate({ to: "/login" });
+      return;
+    }
+    navigate({ to: "/dashboard/payments" });
+  };
 
   if (status === "loading") {
     return (
@@ -90,11 +112,12 @@ function PaymentSuccess() {
           A PDF invoice has been sent to your email. You can also download it from Payments &amp; Invoices.
         </p>
         <div className="mt-8 flex flex-col gap-2 sm:flex-row sm:justify-center">
-          <Button asChild className="bg-gradient-emerald text-white">
-            <Link to="/dashboard/my-exams">View my exams <ArrowRight className="ml-2 h-4 w-4" /></Link>
+          <Button className="bg-gradient-emerald text-white" onClick={goToMyExams}>
+            View my exams <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
-          <Button asChild variant="outline">
-            <Link to="/dashboard/payments"><Receipt className="mr-2 h-4 w-4" />Payment history</Link>
+          <Button variant="outline" onClick={goToPayments}>
+            <Receipt className="mr-2 h-4 w-4" />
+            Payment history
           </Button>
         </div>
       </div>

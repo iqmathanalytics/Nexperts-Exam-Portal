@@ -11,6 +11,12 @@ import { getInvoiceDetails } from "../services/invoice-details.js";
 import { sendPdfDownload, sendPdfJson } from "../services/pdf-buffer.js";
 import { env } from "../lib/env.js";
 import {
+  buildPaymentCancelUrl,
+  buildPaymentSuccessUrl,
+  buildStripeSuccessUrl,
+  resolveClientOrigin,
+} from "../lib/client-origin.js";
+import {
   generateSlotsForDate,
   minBookableDateString,
   maxBookableDateString,
@@ -76,10 +82,11 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
       });
     }
 
-    const { examId, voucherCode, scheduledDate, scheduledStartTime } = z
+    const { examId, voucherCode, scheduledDate, scheduledStartTime, returnOrigin } = z
       .object({
         examId: z.string().min(1, "Exam is required"),
         voucherCode: z.string().optional(),
+        returnOrigin: z.string().url().optional(),
         scheduledDate: z
           .string({ required_error: "Exam date is required" })
           .regex(/^\d{4}-\d{2}-\d{2}$/, "Use date format YYYY-MM-DD"),
@@ -128,6 +135,7 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
 
     const amount = Math.max(0, subtotal);
     const inv = invoiceId();
+    const clientOrigin = resolveClientOrigin(req, returnOrigin);
 
     const payment = await prisma.payment.create({
       data: {
@@ -153,7 +161,10 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
       return res.json({
         mode: "free",
         paymentId: payment.id,
-        redirectUrl: `${env.stripeSuccessUrl}?${successParams.toString()}&payment_id=${payment.id}`,
+        redirectUrl: buildPaymentSuccessUrl(clientOrigin, {
+          ...Object.fromEntries(successParams),
+          payment_id: payment.id,
+        }),
       });
     }
 
@@ -163,7 +174,10 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
       return res.json({
         mode: "mock",
         paymentId: payment.id,
-        redirectUrl: `${env.stripeSuccessUrl}?${successParams.toString()}&payment_id=${payment.id}`,
+        redirectUrl: buildPaymentSuccessUrl(clientOrigin, {
+          ...Object.fromEntries(successParams),
+          payment_id: payment.id,
+        }),
       });
     }
 
@@ -194,8 +208,8 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
             quantity: 1,
           },
         ],
-        success_url: `${env.stripeSuccessUrl}?session_id={CHECKOUT_SESSION_ID}&${successParams.toString()}`,
-        cancel_url: `${env.stripeCancelUrl}?canceled=1`,
+        success_url: buildStripeSuccessUrl(clientOrigin, Object.fromEntries(successParams)),
+        cancel_url: buildPaymentCancelUrl(clientOrigin),
         metadata: {
           paymentId: payment.id,
           userId,
@@ -237,6 +251,35 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
   }
 });
 
+router.post("/abandon-checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
+  try {
+    const userId = req.user!.sub;
+    const pending = await prisma.payment.findFirst({
+      where: { userId, status: PaymentStatus.PENDING },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!pending) return res.json({ ok: true });
+
+    const stripe = getStripe();
+    if (stripe && pending.stripeSessionId) {
+      try {
+        const existing = await stripe.checkout.sessions.retrieve(pending.stripeSessionId);
+        if (existing.status === "open") {
+          await stripe.checkout.sessions.expire(pending.stripeSessionId);
+        }
+      } catch (e) {
+        console.warn("Stripe session expire failed:", e);
+      }
+    }
+
+    await prisma.payment.delete({ where: { id: pending.id } });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error("Abandon checkout error:", e);
+    res.status(500).json({ error: "Could not abandon checkout" });
+  }
+});
+
 router.post("/:id/resume", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
   try {
     const paymentId = String(req.params.id);
@@ -247,38 +290,44 @@ router.post("/:id/resume", requireAuth(Role.CANDIDATE), async (req: AuthedReques
     });
     if (!payment) return res.status(404).json({ error: "Pending payment not found" });
 
+    const clientOrigin = resolveClientOrigin(req);
     const stripe = getStripe();
     if (stripe && payment.stripeSessionId) {
       const existing = await stripe.checkout.sessions.retrieve(payment.stripeSessionId);
-      if (existing.status === "open" && existing.url) {
+      const cancelOk = existing.cancel_url === buildPaymentCancelUrl(clientOrigin);
+      if (existing.status === "open" && existing.url && cancelOk) {
         return res.json({ mode: "stripe", url: existing.url });
+      }
+      if (existing.status === "open") {
+        await stripe.checkout.sessions.expire(payment.stripeSessionId).catch(() => {});
       }
     }
 
     const amount = Number(payment.amount);
     if (amount === 0) {
       await fulfillPayment(payment.id);
-      const successParams = new URLSearchParams({
-        exam: payment.exam.title,
-        amount: "0",
-        invoice: payment.invoiceId,
-      });
       return res.json({
         mode: "free",
-        url: `${env.stripeSuccessUrl}?${successParams.toString()}&payment_id=${payment.id}`,
+        url: buildPaymentSuccessUrl(clientOrigin, {
+          exam: payment.exam.title,
+          amount: "0",
+          invoice: payment.invoiceId,
+          payment_id: payment.id,
+        }),
       });
     }
 
     if (!stripe) {
       await fulfillPayment(payment.id);
-      const successParams = new URLSearchParams({
+      const successParams = {
         exam: payment.exam.title,
         amount: String(amount),
         invoice: payment.invoiceId,
-      });
+        payment_id: payment.id,
+      };
       return res.json({
         mode: "mock",
-        url: `${env.stripeSuccessUrl}?${successParams.toString()}&payment_id=${payment.id}`,
+        url: buildPaymentSuccessUrl(clientOrigin, successParams),
       });
     }
 
@@ -300,8 +349,12 @@ router.post("/:id/resume", requireAuth(Role.CANDIDATE), async (req: AuthedReques
           quantity: 1,
         },
       ],
-      success_url: `${env.stripeSuccessUrl}?session_id={CHECKOUT_SESSION_ID}&exam=${encodeURIComponent(payment.exam.title)}&amount=${amount}&invoice=${payment.invoiceId}`,
-      cancel_url: `${env.stripeCancelUrl}?canceled=1`,
+      success_url: buildStripeSuccessUrl(clientOrigin, {
+        exam: payment.exam.title,
+        amount: String(amount),
+        invoice: payment.invoiceId,
+      }),
+      cancel_url: buildPaymentCancelUrl(clientOrigin),
       metadata: {
         paymentId: payment.id,
         userId,

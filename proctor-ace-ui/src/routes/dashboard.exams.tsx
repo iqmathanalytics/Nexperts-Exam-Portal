@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { BookOpen, CalendarClock, Clock, Tag, Filter, Sparkles, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { ApiError } from "@/lib/api-client";
 import { apiAuth } from "@/lib/api-auth";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { useInvalidateSession, usePageDataLoad } from "@/contexts/page-load-context";
 import type { ScheduleSlot } from "@/lib/exam-schedule";
 import { cn } from "@/lib/utils";
 
@@ -39,13 +39,22 @@ type Exam = {
   passScore: number;
 };
 
+function isCanceledSearch(s: Record<string, unknown>): boolean {
+  const v = s.canceled;
+  if (v === "1" || v === 1 || v === true) return true;
+  if (typeof v === "string" && ["true", "yes"].includes(v.toLowerCase())) return true;
+  return false;
+}
+
 export const Route = createFileRoute("/dashboard/exams")({
   component: AvailableExams,
-  validateSearch: (s: Record<string, unknown>) => ({ canceled: s.canceled === "1" || s.canceled === 1 }),
+  validateSearch: (s: Record<string, unknown>) => ({ canceled: isCanceledSearch(s) }),
 });
 
 function AvailableExams() {
   const { canceled } = Route.useSearch();
+  const navigate = useNavigate();
+  const invalidateSession = useInvalidateSession();
   const [q, setQ] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [levelFilter, setLevelFilter] = useState("all");
@@ -69,8 +78,13 @@ function AvailableExams() {
   );
 
   useEffect(() => {
-    if (canceled) toast.info("Checkout canceled");
-  }, [canceled]);
+    if (!canceled) return;
+    toast.info("Checkout canceled");
+    void apiAuth("/api/payments/abandon-checkout", { method: "POST" }).catch(() => {});
+    invalidateSession("payments");
+    invalidateSession("available-exams");
+    navigate({ to: "/dashboard/exams", search: {}, replace: true });
+  }, [canceled, navigate, invalidateSession]);
 
   const categories = useMemo(() => {
     return [...new Set(exams.map((e) => e.category).filter(Boolean))].sort();
@@ -179,6 +193,7 @@ function AvailableExams() {
           voucherCode: voucher || undefined,
           scheduledDate: dateStr,
           scheduledStartTime: selectedSlot.startTime,
+          returnOrigin: window.location.origin,
         }),
       });
       if ((res.mode === "stripe" || res.mode === "mock" || res.mode === "free") && res.url) {

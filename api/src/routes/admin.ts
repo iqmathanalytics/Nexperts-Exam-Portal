@@ -1350,6 +1350,63 @@ router.get("/certificates", async (_req, res) => {
   });
 });
 
+router.post("/certificates/assign", async (req, res) => {
+  try {
+    const { userId, examId, score } = z
+      .object({
+        userId: z.string().min(1),
+        examId: z.string().min(1),
+        score: z.number().int().min(0).max(100).optional(),
+      })
+      .parse(req.body);
+
+    const [user, exam] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId } }),
+      prisma.exam.findUnique({ where: { id: examId } }),
+    ]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role !== Role.CANDIDATE) {
+      return res.status(400).json({ error: "Certificates can only be assigned to candidates" });
+    }
+    if (!exam) return res.status(404).json({ error: "Exam not found" });
+
+    const finalScore = score ?? 100;
+    const credentialId = `NX-${examId.slice(0, 4).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
+    const existing = await prisma.certificate.findFirst({
+      where: { userId, examId },
+      orderBy: { issuedOn: "desc" },
+    });
+
+    const cert = existing
+      ? await prisma.certificate.update({
+          where: { id: existing.id },
+          data: { credentialId, score: finalScore, issuedOn: new Date() },
+        })
+      : await prisma.certificate.create({
+          data: { userId, examId, credentialId, score: finalScore },
+        });
+
+    res.json({
+      ok: true,
+      replaced: Boolean(existing),
+      certificate: {
+        id: cert.id,
+        userId: cert.userId,
+        examId: cert.examId,
+        candidate: user.fullName,
+        exam: exam.title,
+        credentialId: cert.credentialId,
+        issuedOn: cert.issuedOn.toISOString().slice(0, 10),
+        score: cert.score,
+      },
+    });
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.flatten() });
+    console.error("Assign certificate error:", e);
+    return res.status(500).json({ error: "Could not assign certificate" });
+  }
+});
+
 router.post("/certificates/:id/regenerate", async (req, res) => {
   const cert = await prisma.certificate.findUnique({ where: { id: String(req.params.id) } });
   if (!cert) return res.status(404).json({ error: "Not found" });

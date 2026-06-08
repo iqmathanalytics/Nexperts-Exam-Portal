@@ -77,8 +77,10 @@ npm run preview:cloudflare
 |---------|--------|
 | **Production branch** | `main` |
 | **Root directory** | `proctor-ace-ui` |
-| **Build command** | `npm install && npm run build:cloudflare` |
+| **Build command** | `npm ci && npm run build:cloudflare` |
 | **Deploy command** | `npx wrangler deploy` |
+
+> Cloudflare must use **npm** (`package-lock.json`), not Bun. Do not add a `bun.lock` file in `proctor-ace-ui/`.
 
 4. Add **environment variable** (build):
 

@@ -1,6 +1,6 @@
 const TZ = "Asia/Kuala_Lumpur";
 const WINDOW_START_MINUTES = 10 * 60; // 10:00
-const WINDOW_END_MINUTES = 18 * 60; // 18:00 — exam must finish by this time
+const WINDOW_END_MINUTES = 18 * 60; // 18:00 — last bookable start time
 const SLOT_STEP_MINUTES = 30;
 const EARLY_JOIN_MS = 10 * 60 * 1000;
 const BOOKING_HORIZON_DAYS = 365;
@@ -70,6 +70,14 @@ export function isBookableDate(dateStr: string): boolean {
   return dateStr >= minBookableDateString() && dateStr <= maxBookableDateString();
 }
 
+/** Next 30-min slot boundary at or after now in MYT (for same-day booking). */
+function earliestBookableMinutes(now: Date): number {
+  const p = klParts(now);
+  const current = p.hour * 60 + p.minute;
+  const next = Math.ceil(current / SLOT_STEP_MINUTES) * SLOT_STEP_MINUTES;
+  return Math.max(WINDOW_START_MINUTES, next);
+}
+
 /** Parse YYYY-MM-DD + HH:mm in Malaysia time to UTC Date */
 export function parseScheduledStart(dateStr: string, timeStr: string): Date {
   const [h, m] = timeStr.split(":").map(Number);
@@ -86,18 +94,17 @@ export function generateSlotsForDate(
   durationMinutes: number,
   now = new Date(),
 ): ScheduleSlot[] {
-  const lastStartMinute = WINDOW_END_MINUTES - durationMinutes;
-  if (lastStartMinute < WINDOW_START_MINUTES) return [];
+  void durationMinutes;
+  const isToday = dateStr === todayDateString();
+  const minStart = isToday ? earliestBookableMinutes(now) : WINDOW_START_MINUTES;
+  if (minStart > WINDOW_END_MINUTES) return [];
 
   const slots: ScheduleSlot[] = [];
-  for (let m = WINDOW_START_MINUTES; m <= lastStartMinute; m += SLOT_STEP_MINUTES) {
+  for (let m = minStart; m <= WINDOW_END_MINUTES; m += SLOT_STEP_MINUTES) {
     const h = Math.floor(m / 60);
     const min = m % 60;
     const startTime = `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
     const startAt = parseScheduledStart(dateStr, startTime);
-    if (dateStr === todayDateString() && startAt.getTime() <= now.getTime()) {
-      continue;
-    }
     const endAt = scheduledEndFromStart(startAt, durationMinutes);
     const endKl = new Intl.DateTimeFormat("en-MY", {
       timeZone: TZ,

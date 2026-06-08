@@ -34,8 +34,11 @@ function invoiceId() {
 
 router.get("/schedule-slots", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
   try {
-    const { examId, date } = z
-      .object({ examId: z.string(), date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/) })
+    const { examId, date: dateParam } = z
+      .object({
+        examId: z.string(),
+        date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      })
       .parse(req.query);
 
     const exam = await prisma.exam.findUnique({ where: { id: examId } });
@@ -43,6 +46,7 @@ router.get("/schedule-slots", requireAuth(Role.CANDIDATE), async (req: AuthedReq
       return res.status(404).json({ error: "Exam not found" });
     }
 
+    const date = dateParam ?? minBookableDateString();
     const slots = generateSlotsForDate(date, exam.duration);
     res.json({
       date,

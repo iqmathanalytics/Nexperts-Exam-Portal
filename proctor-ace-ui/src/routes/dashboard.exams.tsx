@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, CalendarClock, Clock, Tag, Filter, Sparkles, Search } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/dashboard-bits";
@@ -68,6 +68,7 @@ function AvailableExams() {
   const [slots, setSlots] = useState<ScheduleSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<ScheduleSlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
+  const loadedScheduleDateRef = useRef<string | null>(null);
   const { data: exams = [] } = usePageDataLoad(
     "available-exams",
     async () => {
@@ -110,11 +111,35 @@ function AvailableExams() {
   const dateStr = scheduleDateStr;
 
   useEffect(() => {
-    if (!active || !dateStr) {
-      setSlots([]);
-      setSelectedSlot(null);
+    if (!active) {
+      loadedScheduleDateRef.current = null;
       return;
     }
+    loadedScheduleDateRef.current = null;
+    setScheduleDateStr("");
+    setSlots([]);
+    setSelectedSlot(null);
+    setLoadingSlots(true);
+    apiAuth<{ slots: ScheduleSlot[]; minDate: string; maxDate: string; date: string }>(
+      `/api/payments/schedule-slots?examId=${active.id}`,
+    )
+      .then((d) => {
+        setMinDate(d.minDate);
+        setMaxDate(d.maxDate);
+        setScheduleDateStr(d.date);
+        setSlots(d.slots);
+        setSelectedSlot(d.slots[0] ?? null);
+        loadedScheduleDateRef.current = d.date;
+      })
+      .catch(() => {
+        setSlots([]);
+        toast.error("Could not load time slots");
+      })
+      .finally(() => setLoadingSlots(false));
+  }, [active?.id]);
+
+  useEffect(() => {
+    if (!active || !dateStr || dateStr === loadedScheduleDateRef.current) return;
     setLoadingSlots(true);
     apiAuth<{ slots: ScheduleSlot[]; minDate: string; maxDate: string }>(
       `/api/payments/schedule-slots?examId=${active.id}&date=${dateStr}`,
@@ -124,6 +149,7 @@ function AvailableExams() {
         setMaxDate(d.maxDate);
         setSlots(d.slots);
         setSelectedSlot(d.slots[0] ?? null);
+        loadedScheduleDateRef.current = dateStr;
       })
       .catch(() => {
         setSlots([]);
@@ -136,24 +162,6 @@ function AvailableExams() {
     setActive(e);
     setDiscount(0);
     setVoucher("");
-    setSlots([]);
-    setSelectedSlot(null);
-    const today = new Date().toISOString().slice(0, 10);
-    setScheduleDateStr(today);
-    void apiAuth<{ minDate: string; maxDate: string; slots: ScheduleSlot[] }>(
-      `/api/payments/schedule-slots?examId=${e.id}&date=${today}`,
-    )
-      .then((d) => {
-        setMinDate(d.minDate);
-        setMaxDate(d.maxDate);
-        setScheduleDateStr(d.minDate);
-        setSlots(d.slots);
-        setSelectedSlot(d.slots[0] ?? null);
-      })
-      .catch(() => {
-        setMinDate("");
-        setMaxDate("");
-      });
   };
 
   const applyVoucher = async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -35,28 +35,35 @@ export function RescheduleExamDialog({
   const [selected, setSelected] = useState<ScheduleSlot | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const loadedDateRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
-    const today = new Date().toISOString().slice(0, 10);
-    setDateStr(today);
+    if (!open) {
+      loadedDateRef.current = null;
+      return;
+    }
+    loadedDateRef.current = null;
+    setDateStr("");
+    setSlots([]);
+    setSelected(null);
     setLoading(true);
-    apiAuth<{ minDate: string; maxDate: string; slots: ScheduleSlot[] }>(
-      `/api/payments/schedule-slots?examId=${examId}&date=${today}`,
+    apiAuth<{ minDate: string; maxDate: string; slots: ScheduleSlot[]; date: string }>(
+      `/api/payments/schedule-slots?examId=${examId}`,
     )
       .then((d) => {
         setMinDate(d.minDate);
         setMaxDate(d.maxDate);
-        setDateStr(d.minDate);
+        setDateStr(d.date);
         setSlots(d.slots);
         setSelected(d.slots[0] ?? null);
+        loadedDateRef.current = d.date;
       })
       .catch(() => toast.error("Could not load slots"))
       .finally(() => setLoading(false));
   }, [open, examId]);
 
   useEffect(() => {
-    if (!open || !dateStr) return;
+    if (!open || !dateStr || dateStr === loadedDateRef.current) return;
     setLoading(true);
     apiAuth<{ slots: ScheduleSlot[]; minDate: string; maxDate: string }>(
       `/api/payments/schedule-slots?examId=${examId}&date=${dateStr}`,
@@ -66,6 +73,7 @@ export function RescheduleExamDialog({
         setMaxDate(d.maxDate);
         setSlots(d.slots);
         setSelected(d.slots[0] ?? null);
+        loadedDateRef.current = dateStr;
       })
       .finally(() => setLoading(false));
   }, [dateStr, examId, open]);

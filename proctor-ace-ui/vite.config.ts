@@ -7,9 +7,7 @@
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import netlify from "@netlify/vite-plugin-tanstack-start";
 
-// Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-// For Cloudflare local dev, wrangler.jsonc still points at src/server.ts.
-// For Netlify production, @netlify/vite-plugin-tanstack-start configures the build output.
+// Netlify production build (default). For Cloudflare use vite.config.cloudflare.ts.
 export default defineConfig({
   tanstackStart: {
     server: { entry: "server" },

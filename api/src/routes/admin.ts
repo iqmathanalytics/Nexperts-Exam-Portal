@@ -15,6 +15,7 @@ import { env } from "../lib/env.js";
 import { generateQuestionsWithGroq } from "../services/groq.js";
 import { generateVoucherCode } from "../lib/voucher-code.js";
 import { extractTextFromPdfBuffer } from "../services/pdf-text.js";
+import { attendByFromPurchase } from "../services/exam-scheduling.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -144,6 +145,77 @@ router.get("/exams", async (_req, res) => {
       questionPoolName: exam.questionPool?.name ?? null,
     })),
   });
+});
+
+router.post("/exams/assign", async (req, res) => {
+  try {
+    const { userId, examId, startImmediately } = z
+      .object({
+        userId: z.string().min(1),
+        examId: z.string().min(1),
+        startImmediately: z.boolean().optional(),
+      })
+      .parse(req.body);
+
+    const [user, exam] = await Promise.all([
+      prisma.user.findUnique({ where: { id: userId } }),
+      prisma.exam.findUnique({ where: { id: examId } }),
+    ]);
+    if (!user) return res.status(404).json({ error: "User not found" });
+    if (user.role !== Role.CANDIDATE) {
+      return res.status(400).json({ error: "Exams can only be assigned to candidates" });
+    }
+    if (!exam) return res.status(404).json({ error: "Exam not found" });
+
+    const existingPaid = await prisma.payment.findFirst({
+      where: { userId, examId, status: PaymentStatus.PAID },
+    });
+    if (existingPaid) {
+      return res.status(409).json({ error: "User already has access to this exam" });
+    }
+
+    await prisma.payment.deleteMany({
+      where: { userId, examId, status: PaymentStatus.PENDING },
+    });
+
+    const now = new Date();
+    const openNow = startImmediately !== false;
+    const scheduledStartAt = openNow ? now : null;
+    const scheduledEndAt = openNow
+      ? new Date(now.getTime() + exam.duration * 60 * 1000)
+      : null;
+    const inv = `INV-TEST-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+    const payment = await prisma.payment.create({
+      data: {
+        userId,
+        examId,
+        amount: 0,
+        status: PaymentStatus.PAID,
+        invoiceId: inv,
+        attendByAt: attendByFromPurchase(now),
+        scheduledStartAt,
+        scheduledEndAt,
+      },
+      include: { exam: true, user: true },
+    });
+
+    res.json({
+      ok: true,
+      payment: {
+        id: payment.id,
+        userId: payment.userId,
+        examId: payment.examId,
+        candidate: payment.user.fullName,
+        exam: payment.exam.title,
+        startImmediately: openNow,
+      },
+    });
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.flatten() });
+    console.error("Assign exam error:", e);
+    return res.status(500).json({ error: "Could not assign exam" });
+  }
 });
 
 router.get("/exams/:id", async (req, res) => {
@@ -1348,63 +1420,6 @@ router.get("/certificates", async (_req, res) => {
       score: c.score,
     })),
   });
-});
-
-router.post("/certificates/assign", async (req, res) => {
-  try {
-    const { userId, examId, score } = z
-      .object({
-        userId: z.string().min(1),
-        examId: z.string().min(1),
-        score: z.number().int().min(0).max(100).optional(),
-      })
-      .parse(req.body);
-
-    const [user, exam] = await Promise.all([
-      prisma.user.findUnique({ where: { id: userId } }),
-      prisma.exam.findUnique({ where: { id: examId } }),
-    ]);
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (user.role !== Role.CANDIDATE) {
-      return res.status(400).json({ error: "Certificates can only be assigned to candidates" });
-    }
-    if (!exam) return res.status(404).json({ error: "Exam not found" });
-
-    const finalScore = score ?? 100;
-    const credentialId = `NX-${examId.slice(0, 4).toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
-    const existing = await prisma.certificate.findFirst({
-      where: { userId, examId },
-      orderBy: { issuedOn: "desc" },
-    });
-
-    const cert = existing
-      ? await prisma.certificate.update({
-          where: { id: existing.id },
-          data: { credentialId, score: finalScore, issuedOn: new Date() },
-        })
-      : await prisma.certificate.create({
-          data: { userId, examId, credentialId, score: finalScore },
-        });
-
-    res.json({
-      ok: true,
-      replaced: Boolean(existing),
-      certificate: {
-        id: cert.id,
-        userId: cert.userId,
-        examId: cert.examId,
-        candidate: user.fullName,
-        exam: exam.title,
-        credentialId: cert.credentialId,
-        issuedOn: cert.issuedOn.toISOString().slice(0, 10),
-        score: cert.score,
-      },
-    });
-  } catch (e) {
-    if (e instanceof z.ZodError) return res.status(400).json({ error: e.flatten() });
-    console.error("Assign certificate error:", e);
-    return res.status(500).json({ error: "Could not assign certificate" });
-  }
 });
 
 router.post("/certificates/:id/regenerate", async (req, res) => {

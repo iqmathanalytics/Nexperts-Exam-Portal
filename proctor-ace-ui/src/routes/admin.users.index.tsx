@@ -1,15 +1,28 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Download, Eye, UserX } from "lucide-react";
+import { BookOpen, Download, Eye, UserX } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, StatusBadge, DataToolbar } from "@/components/admin-bits";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { apiAuth, downloadAuthCsv } from "@/lib/api-auth";
 import { useAdminSearch } from "@/contexts/admin-search-context";
 import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 import { ApiError } from "@/lib/api-client";
 
 type UserRow = { id: string; name: string; email: string; phone: string; icPassport: string; status: string; examsTaken: number; violations: number };
+type ExamOption = { id: string; title: string; status: string };
 
 export const Route = createFileRoute("/admin/users/")({
   component: AdminUsers,
@@ -19,6 +32,10 @@ function AdminUsers() {
   const navigate = useNavigate();
   const { query: search, setQuery: setSearch } = useAdminSearch();
   const invalidateSession = useInvalidateSession();
+  const [assignOpen, setAssignOpen] = useState(false);
+  const [assignUser, setAssignUser] = useState<UserRow | null>(null);
+  const [assignExamId, setAssignExamId] = useState("");
+  const [assigning, setAssigning] = useState(false);
   const { data: users = [] } = usePageDataLoad(
     "admin-users",
     async () => {
@@ -27,10 +44,54 @@ function AdminUsers() {
     },
     [],
   );
+  const { data: exams = [] } = usePageDataLoad(
+    "admin-assign-exam-list",
+    async () => {
+      const d = await apiAuth<{ exams: ExamOption[] }>("/api/admin/exams");
+      return d.exams.map((e) => ({ id: e.id, title: e.title, status: e.status }));
+    },
+    [],
+    { enabled: assignOpen },
+  );
 
   const filtered = users.filter(
     (u) => u.name.toLowerCase().includes(search.toLowerCase()) || u.email.toLowerCase().includes(search.toLowerCase()),
   );
+
+  const openAssign = (u: UserRow) => {
+    setAssignUser(u);
+    setAssignExamId("");
+    setAssignOpen(true);
+  };
+
+  const assignExam = async () => {
+    if (!assignUser || !assignExamId) {
+      toast.error("Select an exam");
+      return;
+    }
+    setAssigning(true);
+    try {
+      const res = await apiAuth<{
+        payment: { candidate: string; exam: string };
+      }>("/api/admin/exams/assign", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: assignUser.id,
+          examId: assignExamId,
+          startImmediately: true,
+        }),
+      });
+      toast.success(`Assigned ${res.payment.exam} to ${res.payment.candidate}`);
+      setAssignOpen(false);
+      setAssignUser(null);
+      setAssignExamId("");
+      invalidateSession("admin-users");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Assign failed");
+    } finally {
+      setAssigning(false);
+    }
+  };
 
   const toggleStatus = async (u: UserRow) => {
     const next = u.status === "ACTIVE" || u.status === "Active" ? "SUSPENDED" : "ACTIVE";
@@ -84,6 +145,14 @@ function AdminUsers() {
                     >
                       <Eye className="mr-1 h-3 w-3" />View
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      title="Assign exam for testing"
+                      onClick={() => openAssign(u)}
+                    >
+                      <BookOpen className="mr-1 h-3 w-3" />Assign exam
+                    </Button>
                     <Button variant="ghost" size="icon" title="Download CSV report" onClick={() => downloadReport(u)}>
                       <Download className="h-4 w-4" />
                     </Button>
@@ -97,6 +166,49 @@ function AdminUsers() {
           </tbody>
         </table>
       </div>
+
+      <Dialog open={assignOpen} onOpenChange={setAssignOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign exam (testing)</DialogTitle>
+            <DialogDescription>
+              Grant a candidate access to an exam without payment. The exam opens immediately under My Exams so they can start testing.
+            </DialogDescription>
+          </DialogHeader>
+          {assignUser && (
+            <div className="space-y-4">
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm">
+                <div className="text-xs text-muted-foreground">Candidate</div>
+                <div className="font-medium">{assignUser.name}</div>
+                <div className="text-xs text-muted-foreground">{assignUser.email}</div>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Exam</Label>
+                <Select value={assignExamId} onValueChange={setAssignExamId}>
+                  <SelectTrigger><SelectValue placeholder="Select exam" /></SelectTrigger>
+                  <SelectContent>
+                    {exams.map((e) => (
+                      <SelectItem key={e.id} value={e.id}>
+                        {e.title} ({e.status})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssignOpen(false)}>Cancel</Button>
+            <Button
+              className="bg-gradient-emerald text-white"
+              disabled={assigning || !assignExamId}
+              onClick={assignExam}
+            >
+              {assigning ? "Assigning…" : "Assign exam"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

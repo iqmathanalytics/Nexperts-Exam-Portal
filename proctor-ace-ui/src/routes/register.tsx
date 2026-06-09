@@ -8,6 +8,7 @@ import { BRAND } from "@/lib/branding";
 import { COUNTRY_DIAL_CODES, formatPhoneWithDial } from "@/lib/country-codes";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/password-input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -140,8 +141,7 @@ function Register() {
           />
         </Field>
         <Field label="Password" error={errors.password} hint="For future use">
-          <Input
-            type="password"
+          <PasswordInput
             value={form.password}
             onChange={(e) => update("password", e.target.value)}
             placeholder="••••••••"

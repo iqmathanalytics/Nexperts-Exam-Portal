@@ -3,9 +3,17 @@ import { useEffect, useState } from "react";
 import { CheckCircle2, ArrowRight, Receipt, Loader2, XCircle } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
-import { apiBase } from "@/lib/api-client";
-import { isClientAuthenticated } from "@/lib/auth";
+import { api, apiBase } from "@/lib/api-client";
+import { getToken, isClientAuthenticated } from "@/lib/auth";
+import { isRealStripeSessionId } from "@/lib/stripe-session";
 import { useInvalidateSession } from "@/contexts/page-load-context";
+
+type ConfirmResult = {
+  paid?: boolean;
+  examTitle?: string;
+  amount?: number;
+  invoiceId?: string;
+};
 
 export const Route = createFileRoute("/payment-success")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -19,13 +27,17 @@ export const Route = createFileRoute("/payment-success")({
   head: () => ({ meta: [{ title: "Payment successful — Certification Portal" }] }),
 });
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function PaymentSuccess() {
   const navigate = useNavigate();
   const invalidateSession = useInvalidateSession();
   const search = Route.useSearch();
-  const [status, setStatus] = useState<"loading" | "ok" | "fail">(
-    search.session_id ? "loading" : "ok",
-  );
+  const stripeSessionId = isRealStripeSessionId(search.session_id) ? search.session_id : "";
+  const needsConfirm = Boolean(stripeSessionId || search.payment_id);
+  const [status, setStatus] = useState<"loading" | "ok" | "fail">(needsConfirm ? "loading" : "ok");
   const [details, setDetails] = useState({
     exam: search.exam,
     amount: search.amount,
@@ -33,28 +45,76 @@ function PaymentSuccess() {
   });
 
   useEffect(() => {
-    if (search.session_id) {
-      fetch(`${apiBase}/api/payments/session/${search.session_id}`)
-        .then((r) => r.json())
-        .then((d: { paid?: boolean; examTitle?: string; amount?: number; invoiceId?: string }) => {
-          if (d.paid) {
-            setStatus("ok");
-            setDetails({
-              exam: d.examTitle ?? search.exam,
-              amount: d.amount ?? search.amount,
-              invoice: d.invoiceId ?? search.invoice,
-            });
-            invalidateSession("my-exams");
-            invalidateSession("payments");
-            invalidateSession("available-exams");
-            invalidateSession("dashboard-home");
-          } else {
-            setStatus("fail");
-          }
-        })
-        .catch(() => setStatus("fail"));
+    if (!needsConfirm) return;
+
+    let cancelled = false;
+
+    async function confirmOnce(): Promise<ConfirmResult | null> {
+      const token = getToken();
+      if (token && (stripeSessionId || search.payment_id)) {
+        try {
+          return await api<ConfirmResult>("/api/payments/confirm-return", {
+            method: "POST",
+            token,
+            body: JSON.stringify({
+              sessionId: stripeSessionId || undefined,
+              paymentId: search.payment_id || undefined,
+            }),
+          });
+        } catch {
+          /* fall through to public session check */
+        }
+      }
+
+      if (stripeSessionId) {
+        try {
+          const res = await fetch(
+            `${apiBase}/api/payments/session/${encodeURIComponent(stripeSessionId)}`,
+          );
+          if (res.ok) return (await res.json()) as ConfirmResult;
+        } catch {
+          return null;
+        }
+      }
+
+      return null;
     }
-  }, [search.session_id, search.exam, search.amount, search.invoice, invalidateSession]);
+
+    async function run() {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        if (cancelled) return;
+        const d = await confirmOnce();
+        if (d?.paid) {
+          setStatus("ok");
+          setDetails({
+            exam: d.examTitle ?? search.exam,
+            amount: d.amount ?? search.amount,
+            invoice: d.invoiceId ?? search.invoice,
+          });
+          invalidateSession("my-exams");
+          invalidateSession("payments");
+          invalidateSession("available-exams");
+          invalidateSession("dashboard-home");
+          return;
+        }
+        if (attempt < 9) await sleep(2000);
+      }
+      if (!cancelled) setStatus("fail");
+    }
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    needsConfirm,
+    stripeSessionId,
+    search.payment_id,
+    search.exam,
+    search.amount,
+    search.invoice,
+    invalidateSession,
+  ]);
 
   const goToMyExams = () => {
     if (!isClientAuthenticated()) {
@@ -86,8 +146,13 @@ function PaymentSuccess() {
       <div className="flex min-h-screen flex-col items-center justify-center px-4">
         <XCircle className="h-12 w-12 text-destructive" />
         <h1 className="mt-4 font-display text-xl font-bold">Payment not confirmed</h1>
-        <p className="mt-2 text-sm text-muted-foreground">Contact support if you were charged.</p>
-        <Button asChild className="mt-6"><Link to="/dashboard/payments">View payments</Link></Button>
+        <p className="mt-2 max-w-sm text-center text-sm text-muted-foreground">
+          If you completed checkout, wait a moment and refresh. Your payment may still be processing.
+        </p>
+        <div className="mt-6 flex flex-col gap-2 sm:flex-row">
+          <Button onClick={() => window.location.reload()}>Try again</Button>
+          <Button variant="outline" onClick={goToPayments}>View payments</Button>
+        </div>
       </div>
     );
   }

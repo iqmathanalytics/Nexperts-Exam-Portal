@@ -15,6 +15,13 @@ import { Input } from "@/components/ui/input";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { UserNotifications } from "@/components/user-notifications";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
 const nav: NavItem[] = [
@@ -140,13 +147,39 @@ export function DashboardLayout() {
           </div>
           <UserNotifications />
           <ThemeToggle />
-          <div className="lg:hidden">
-            <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-gradient-emerald text-white text-xs" suppressHydrationWarning>
-                {initials}
-              </AvatarFallback>
-            </Avatar>
-          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-lg border border-border px-2 py-1.5 outline-none hover:bg-muted/60"
+                aria-label="Account menu"
+              >
+                <Avatar className="h-8 w-8">
+                  <AvatarFallback className="bg-gradient-emerald text-white text-xs" suppressHydrationWarning>
+                    {initials}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="hidden max-w-[8rem] truncate text-sm font-medium sm:inline" suppressHydrationWarning>
+                  {displayName}
+                </span>
+                <ChevronDown className="hidden h-3.5 w-3.5 text-muted-foreground sm:block" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <div className="px-2 py-1.5">
+                <p className="truncate text-sm font-medium" suppressHydrationWarning>{displayName}</p>
+                <p className="truncate text-xs text-muted-foreground" suppressHydrationWarning>{email}</p>
+              </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link to="/dashboard/profile">Profile settings</Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={logout} className="text-destructive focus:text-destructive">
+                <LogOut className="mr-2 h-4 w-4" />
+                Sign out
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </header>
 
         <div className="min-w-0 max-w-full flex-1 overflow-x-clip p-4 lg:p-8">

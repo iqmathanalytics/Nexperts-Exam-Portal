@@ -6,6 +6,7 @@ import { api, ApiError } from "@/lib/api-client";
 import { getAuth, setAuth, mapApiRole } from "@/lib/auth";
 import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
+import { PasswordInput } from "@/components/password-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -97,8 +98,7 @@ function AdminLogin() {
                 <Label className="text-xs font-medium">Password</Label>
                 <a href="#" className="text-[11px] text-accent hover:underline">Forgot?</a>
               </div>
-              <Input
-                type="password"
+              <PasswordInput
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"

@@ -16,6 +16,7 @@ import {
   buildStripeSuccessUrl,
   resolveClientOrigin,
 } from "../lib/client-origin.js";
+import { isRealStripeSessionId, resolveStripeSessionId } from "../lib/stripe-session.js";
 import {
   addKlDays,
   generateSlotsForDate,
@@ -180,6 +181,7 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
       exam: exam.title,
       amount: String(amount),
       invoice: inv,
+      payment_id: payment.id,
     });
 
     if (amount === 0) {
@@ -379,6 +381,7 @@ router.post("/:id/resume", requireAuth(Role.CANDIDATE), async (req: AuthedReques
         exam: payment.exam.title,
         amount: String(amount),
         invoice: payment.invoiceId,
+        payment_id: payment.id,
       }),
       cancel_url: buildPaymentCancelUrl(clientOrigin),
       metadata: {
@@ -611,34 +614,191 @@ router.get("/my", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) =
   });
 });
 
+type ConfirmPayload = {
+  paid: boolean;
+  examTitle?: string;
+  amount?: number;
+  invoiceId?: string;
+  paymentId?: string;
+};
+
+function isStripeCheckoutPaid(session: Stripe.Checkout.Session): boolean {
+  return (
+    session.payment_status === "paid" ||
+    session.payment_status === "no_payment_required" ||
+    (session.status === "complete" && session.payment_status !== "unpaid")
+  );
+}
+
+function toConfirmPayload(
+  payment: { id: string; amount: unknown; invoiceId: string; status: PaymentStatus; exam: { title: string } },
+  paid = payment.status === PaymentStatus.PAID,
+): ConfirmPayload {
+  return {
+    paid,
+    examTitle: payment.exam.title,
+    amount: Number(payment.amount),
+    invoiceId: payment.invoiceId,
+    paymentId: payment.id,
+  };
+}
+
+async function paymentConfirmPayload(paymentId: string): Promise<ConfirmPayload | null> {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { exam: true },
+  });
+  if (!payment) return null;
+  return toConfirmPayload(payment);
+}
+
+async function retrieveStripeCheckoutSession(sessionId: string): Promise<Stripe.Checkout.Session | null> {
+  const stripe = getStripe();
+  if (!stripe || !isRealStripeSessionId(sessionId)) return null;
+  try {
+    return await stripe.checkout.sessions.retrieve(sessionId);
+  } catch (e) {
+    console.warn("Stripe session retrieve failed:", sessionId, e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+async function tryFulfillFromStripeSession(
+  payment: { id: string; stripeSessionId: string | null },
+  clientSessionId?: string,
+): Promise<boolean> {
+  const sessionId = resolveStripeSessionId(clientSessionId, payment.stripeSessionId);
+  if (!sessionId) return false;
+
+  const session = await retrieveStripeCheckoutSession(sessionId);
+  if (!session || !isStripeCheckoutPaid(session)) return false;
+
+  await fulfillPayment(payment.id);
+  return true;
+}
+
+async function confirmPaymentForUser(
+  userId: string,
+  opts: { paymentId?: string; sessionId?: string },
+): Promise<ConfirmPayload | { error: string; status: number }> {
+  const { paymentId, sessionId } = opts;
+
+  if (paymentId) {
+    const payment = await prisma.payment.findFirst({
+      where: { id: paymentId, userId },
+      include: { exam: true },
+    });
+    if (!payment) return { error: "Payment not found", status: 404 };
+    if (payment.status === PaymentStatus.PAID) return toConfirmPayload(payment, true);
+
+    if (await tryFulfillFromStripeSession(payment, sessionId)) {
+      const refreshed = await paymentConfirmPayload(payment.id);
+      return refreshed ?? toConfirmPayload(payment, true);
+    }
+
+    return toConfirmPayload(payment, false);
+  }
+
+  const resolvedSessionId = resolveStripeSessionId(sessionId, undefined);
+  if (!resolvedSessionId) {
+    return { error: "sessionId or paymentId required", status: 400 };
+  }
+
+  const result = await confirmStripeSession(resolvedSessionId);
+  if (!result.paid || !result.paymentId) return result;
+
+  const payment = await prisma.payment.findFirst({
+    where: { id: result.paymentId, userId },
+    include: { exam: true },
+  });
+  if (!payment) return { error: "Payment does not belong to this account", status: 403 };
+
+  return toConfirmPayload(payment, true);
+}
+
+router.post("/confirm-return", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
+  try {
+    const { sessionId, paymentId } = z
+      .object({
+        sessionId: z.string().optional(),
+        paymentId: z.string().optional(),
+      })
+      .parse(req.body);
+
+    if (!paymentId && !isRealStripeSessionId(sessionId)) {
+      return res.status(400).json({ error: "sessionId or paymentId required" });
+    }
+
+    const result = await confirmPaymentForUser(req.user!.sub, { paymentId, sessionId });
+    if ("error" in result) {
+      return res.status(result.status).json({ error: result.error });
+    }
+
+    return res.json(result);
+  } catch (e) {
+    if (e instanceof z.ZodError) return res.status(400).json({ error: e.flatten() });
+    console.error("Confirm return error:", e);
+    return res.status(500).json({ error: "Could not confirm payment" });
+  }
+});
+
+async function confirmStripeSession(sessionId: string): Promise<ConfirmPayload> {
+  if (!isRealStripeSessionId(sessionId)) {
+    return { paid: false };
+  }
+
+  const existing = await prisma.payment.findFirst({
+    where: { stripeSessionId: sessionId },
+    include: { exam: true },
+  });
+  if (existing?.status === PaymentStatus.PAID) {
+    return toConfirmPayload(existing, true);
+  }
+
+  const stripe = getStripe();
+  if (!stripe) {
+    if (existing) {
+      await fulfillPayment(existing.id);
+      const payload = await paymentConfirmPayload(existing.id);
+      return payload ?? { paid: true, paymentId: existing.id };
+    }
+    return { paid: true };
+  }
+
+  const session = await retrieveStripeCheckoutSession(sessionId);
+  if (!session) {
+    return existing ? toConfirmPayload(existing, false) : { paid: false };
+  }
+
+  const paid = isStripeCheckoutPaid(session);
+  const paymentId = session.metadata?.paymentId ?? existing?.id;
+
+  if (paid && paymentId) {
+    await fulfillPayment(paymentId);
+  }
+
+  const refreshed = paymentId ? await paymentConfirmPayload(paymentId) : null;
+  if (refreshed?.paid) {
+    return refreshed;
+  }
+
+  return {
+    paid,
+    examTitle: refreshed?.examTitle ?? existing?.exam.title,
+    amount: refreshed?.amount ?? (session.amount_total ? session.amount_total / 100 : Number(existing?.amount ?? 0)),
+    invoiceId: refreshed?.invoiceId ?? session.metadata?.invoiceId ?? existing?.invoiceId,
+    paymentId,
+  };
+}
+
 router.get("/session/:sessionId", async (req, res) => {
   try {
     const sessionId = String(req.params.sessionId);
-    const stripe = getStripe();
-
-    if (!stripe) {
-      return res.json({ paid: true });
+    const result = await confirmStripeSession(sessionId);
+    if (!result.paid && !("examTitle" in result && result.examTitle)) {
+      return res.json({ paid: false });
     }
-
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
-
-    if (session.payment_status === "paid" && session.metadata?.paymentId) {
-      await fulfillPayment(session.metadata.paymentId);
-    }
-
-    res.json({
-      paid: session.payment_status === "paid",
-      examTitle: session.metadata?.examId
-        ? (
-            await prisma.exam.findUnique({
-              where: { id: session.metadata.examId },
-              select: { title: true },
-            })
-          )?.title
-        : undefined,
-      amount: session.amount_total ? session.amount_total / 100 : 0,
-      invoiceId: session.metadata?.invoiceId,
-    });
+    res.json(result);
   } catch (e) {
     console.error("Session confirm error:", e);
     res.status(400).json({ error: "Could not verify payment session" });

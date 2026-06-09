@@ -1,5 +1,6 @@
 import type { Request } from "express";
 import { env } from "./env.js";
+import { STRIPE_SESSION_PLACEHOLDER } from "./stripe-session.js";
 
 export function normalizeOrigin(url: string): string {
   return url.replace(/\/$/, "");
@@ -45,12 +46,18 @@ export function buildPaymentSuccessUrl(origin: string, query: Record<string, str
   return url.toString();
 }
 
-/** Stripe replaces {CHECKOUT_SESSION_ID} in success_url. */
+/**
+ * Stripe replaces the literal `{CHECKOUT_SESSION_ID}` in success_url.
+ * URLSearchParams encodes `{` `}` which breaks substitution — append it unencoded.
+ */
 export function buildStripeSuccessUrl(origin: string, query: Record<string, string>): string {
-  const url = new URL("/payment-success", `${origin}/`);
-  url.searchParams.set("session_id", "{CHECKOUT_SESSION_ID}");
+  const params = new URLSearchParams();
   for (const [key, value] of Object.entries(query)) {
-    url.searchParams.set(key, value);
+    if (key === "session_id") continue;
+    params.set(key, value);
   }
-  return url.toString();
+  const base = `${normalizeOrigin(origin)}/payment-success`;
+  const rest = params.toString();
+  const sessionQuery = `session_id=${STRIPE_SESSION_PLACEHOLDER}`;
+  return rest ? `${base}?${sessionQuery}&${rest}` : `${base}?${sessionQuery}`;
 }

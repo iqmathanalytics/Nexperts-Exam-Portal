@@ -537,7 +537,10 @@ function QuestionBank() {
             <SelectTrigger className="w-44"><SelectValue placeholder="All types" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={FILTER_ALL}>All types</SelectItem>
-              {bankFilterOptions.types.map((t) => (
+              {(bankFilterOptions.types.length > 0
+                ? bankFilterOptions.types
+                : ["Multiple Choice", "True/False", "Scenario"]
+              ).map((t) => (
                 <SelectItem key={t} value={t}>{t}</SelectItem>
               ))}
             </SelectContent>
@@ -549,7 +552,10 @@ function QuestionBank() {
             <SelectTrigger className="w-40"><SelectValue placeholder="All" /></SelectTrigger>
             <SelectContent>
               <SelectItem value={FILTER_ALL}>All difficulties</SelectItem>
-              {bankFilterOptions.difficulties.map((d) => (
+              {(bankFilterOptions.difficulties.length > 0
+                ? bankFilterOptions.difficulties
+                : ["Beginner", "Intermediate", "Advanced", "Expert"]
+              ).map((d) => (
                 <SelectItem key={d} value={d}>{d}</SelectItem>
               ))}
             </SelectContent>
@@ -590,10 +596,22 @@ function QuestionBank() {
       <DataToolbar search={search} onSearch={setSearch} placeholder="Search questions..." hideInput />
 
       {totalCount > 0 && (
-        <p className="text-xs text-muted-foreground">
-          Showing {questions.length} of {totalCount} question{totalCount === 1 ? "" : "s"}
-          {selectedCount > 0 ? ` · ${selectedCount} selected` : ""}
-        </p>
+        <div className="flex items-center gap-3">
+          <p className="text-xs text-muted-foreground">
+            Showing {questions.length} of {totalCount} question{totalCount === 1 ? "" : "s"}
+            {selectedCount > 0 ? ` · ${selectedCount} selected` : ""}
+          </p>
+          {(filterTopic !== FILTER_ALL || debouncedSearch.trim()) && questions.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => toggleSelectAllFiltered(!allFilteredSelected)}
+            >
+              {allFilteredSelected ? "Deselect all" : `Select all ${questions.length}`}
+            </Button>
+          )}
+        </div>
       )}
 
       <div className="table-panel overflow-hidden rounded-2xl border border-border bg-card">

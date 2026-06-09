@@ -1,7 +1,7 @@
 import { createFileRoute, Link, redirect, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { toast } from "sonner";
-import { Loader2, Lock, Fingerprint, ShieldCheck } from "lucide-react";
+import { Loader2, Lock, Fingerprint } from "lucide-react";
 import { api, ApiError } from "@/lib/api-client";
 import { getAuth, setAuth, mapApiRole } from "@/lib/auth";
 import { BrandLogo } from "@/components/brand-logo";
@@ -112,9 +112,6 @@ function AdminLogin() {
             </Button>
           </form>
 
-          <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-sidebar-foreground/50">
-            <ShieldCheck className="h-3 w-3" /> 256-bit TLS · MFA · Audit logged
-          </div>
         </div>
 
         <p className="mt-6 text-center text-xs text-sidebar-foreground/50">

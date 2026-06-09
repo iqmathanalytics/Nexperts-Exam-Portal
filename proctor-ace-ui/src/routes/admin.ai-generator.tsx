@@ -181,7 +181,7 @@ function AiGenerator() {
     <div className="space-y-6">
       <PageHeader
         title="AI question generator"
-        sub="Generate questions with Groq from a topic or PDF. Review in the preview panel, then accept to add them to an exam."
+        sub="Generate questions with AI from a topic or PDF. Review in the preview panel, then accept to add them to an exam."
         action={
           <Button asChild variant="outline" size="sm">
             <Link to="/admin/questions" search={examId ? { examId } : {}}>
@@ -330,18 +330,18 @@ function AiGenerator() {
               {loading
                 ? sourceMode === "pdf"
                   ? "Processing PDF…"
-                  : "Generating with Groq…"
+                  : "Generating with AI…"
                 : sourceMode === "pdf"
                   ? "Generate from PDF"
-                  : "Generate with Groq"}
+                  : "Generate with AI"}
             </Button>
 
             <p className="text-xs text-muted-foreground">
               {lastSource === "groq"
-                ? "Last run: real Groq LLM questions."
+                ? "Last run: AI-generated questions."
                 : lastSource === "template"
-                  ? "Last run: template fallback (not Groq)."
-                  : `Model: ${groqConfigured === false ? "not configured" : "Groq LLM"}.`}
+                  ? "Last run: template fallback."
+                  : `Model: ${groqConfigured === false ? "not configured" : "AI"}.`}
               {examTitle && generated.length > 0 && ` · Accept adds to ${examTitle}.`}
             </p>
           </div>

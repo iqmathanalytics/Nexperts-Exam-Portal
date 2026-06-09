@@ -34,7 +34,36 @@ function pdfDownloadPath(path: string): string {
 }
 
 export async function downloadAuthCsv(path: string, filename: string) {
-  await downloadAuthPdf(path, filename);
+  const token = getToken();
+  if (!token) throw new Error("Not authenticated");
+
+  const url = `${apiBase}${path}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "X-Requested-With": "XMLHttpRequest",
+    },
+  });
+
+  if (!res.ok) {
+    if (res.status === 401) {
+      handleUnauthorized(path);
+      throw new Error("Your session has expired. Please sign in again.");
+    }
+    let detail = "";
+    try {
+      const err = (await res.json()) as { error?: string };
+      detail = err.error ?? "";
+    } catch {
+      detail = await res.text().catch(() => "");
+    }
+    throw new Error(detail || "Download failed");
+  }
+
+  const text = await res.text();
+  const blob = new Blob([text], { type: "text/csv;charset=utf-8;" });
+  downloadBlob(blob, filename);
 }
 
 export async function downloadAuthPdf(path: string, filename: string) {

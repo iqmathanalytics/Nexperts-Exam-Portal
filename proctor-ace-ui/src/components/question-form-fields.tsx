@@ -106,7 +106,14 @@ export function QuestionFormFields({ form, onChange, exams }: Props) {
         </div>
         <div className="space-y-2">
           <Label>Difficulty</Label>
-          <Input value={form.difficulty} onChange={(e) => onChange({ ...form, difficulty: e.target.value })} />
+          <Select value={form.difficulty} onValueChange={(v) => onChange({ ...form, difficulty: v })}>
+            <SelectTrigger><SelectValue placeholder="Select difficulty" /></SelectTrigger>
+            <SelectContent>
+              {["Beginner", "Intermediate", "Advanced", "Expert"].map((d) => (
+                <SelectItem key={d} value={d}>{d}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
 

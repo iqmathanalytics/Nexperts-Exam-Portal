@@ -6,10 +6,12 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, BookOpen, HelpCircle, Sparkles, Users, CreditCard, Ticket,
   Monitor, BarChart3, Award, FileText, Settings, LogOut, Bell, Search, ChevronDown, Link2,
+  AlertCircle, Info,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { BrandLogo } from "@/components/brand-logo";
@@ -18,6 +20,7 @@ import { apiAuth } from "@/lib/api-auth";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard; exact?: boolean };
 
@@ -36,6 +39,104 @@ const nav: NavItem[] = [
   { to: "/admin/reports", label: "Reports", icon: FileText },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
+
+type AdminNotification = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+};
+
+function AdminNotifications() {
+  const [items, setItems] = useState<AdminNotification[]>([]);
+  const [unread, setUnread] = useState(0);
+  const [open, setOpen] = useState(false);
+
+  const load = () => {
+    apiAuth<{ notifications: AdminNotification[]; unreadCount: number }>("/api/admin/notifications")
+      .then((d) => {
+        setItems(d.notifications);
+        setUnread(d.unreadCount);
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const markRead = () => {
+    if (unread === 0) return;
+    apiAuth("/api/admin/notifications/mark-read", { method: "POST" })
+      .then(() => {
+        setUnread(0);
+        setItems((prev) => prev.map((n) => ({ ...n, read: true })));
+      })
+      .catch(() => {});
+  };
+
+  return (
+    <Popover
+      open={open}
+      onOpenChange={(v) => {
+        setOpen(v);
+        if (v) markRead();
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
+          <Bell className="h-4 w-4" />
+          {unread > 0 && (
+            <span className="absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[9px] font-bold text-white">
+              {unread > 9 ? "9+" : unread}
+            </span>
+          )}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="end" className="w-80 p-0">
+        <div className="border-b px-4 py-3">
+          <div className="font-display font-semibold">Admin Notifications</div>
+          {unread > 0 && (
+            <p className="text-xs text-muted-foreground">{unread} unread</p>
+          )}
+        </div>
+        <div className="max-h-80 overflow-y-auto">
+          {items.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">No notifications</p>
+          ) : (
+            items.map((n) => (
+              <div key={n.id} className="border-b border-border/60 px-4 py-3 last:border-0">
+                <div className="flex items-start gap-2">
+                  {n.type === "alert" ? (
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  ) : (
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{n.title}</span>
+                      {!n.read && (
+                        <Badge variant="destructive" className="h-4 px-1 text-[9px]">New</Badge>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-muted-foreground">{n.message}</p>
+                    <p className="mt-0.5 text-[10px] text-muted-foreground/60">
+                      {new Date(n.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 function AdminHeaderSearch() {
   const { query, setQuery, clearQuery } = useAdminSearch();
@@ -143,9 +244,7 @@ export function AdminLayout() {
             <span className="font-medium text-foreground">{current?.label ?? "Dashboard"}</span>
           </div>
           <AdminHeaderSearch />
-          <Button variant="ghost" size="icon" aria-label="Notifications">
-            <Bell className="h-4 w-4" />
-          </Button>
+          <AdminNotifications />
           <ThemeToggle />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

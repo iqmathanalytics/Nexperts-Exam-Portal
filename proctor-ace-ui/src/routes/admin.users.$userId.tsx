@@ -27,10 +27,11 @@ import {
 import { Label } from "@/components/ui/label";
 import { apiAuth } from "@/lib/api-auth";
 import { ApiError } from "@/lib/api-client";
+import { IdentityPhotoDialog } from "@/components/identity-photo-dialog";
 
 type UserDetail = {
   user: { id: string; name: string; email: string; icPassport: string; status: string };
-  attempts: { id: string; exam: string; examId?: string; date: string; score: number; result: string }[];
+  attempts: { id: string; exam: string; examId?: string; date: string; score: number; result: string; hasIdentityPhoto?: boolean }[];
   payments: { id: string; exam: string; amount: number; status: string; date: string }[];
   violations: { type: string; detail: string; date: string }[];
   certificates: { exam: string; credentialId: string; score: number }[];
@@ -52,6 +53,7 @@ function UserProfile() {
 
   const [resetExamId, setResetExamId] = useState<string>("all");
   const [resetting, setResetting] = useState(false);
+  const [identityAttemptId, setIdentityAttemptId] = useState<string | null>(null);
 
   const examOptions = data
     ? [...new Map(
@@ -83,6 +85,12 @@ function UserProfile() {
 
   return (
     <div className="space-y-6">
+      <IdentityPhotoDialog
+        attemptId={identityAttemptId}
+        open={!!identityAttemptId}
+        onOpenChange={(open) => !open && setIdentityAttemptId(null)}
+      />
+
       <Button asChild variant="ghost" size="sm" className="-ml-2">
         <Link to="/admin/users"><ArrowLeft className="mr-2 h-4 w-4" />Back to users</Link>
       </Button>
@@ -161,9 +169,19 @@ function UserProfile() {
             label: "Exam history",
             content: attempts.length ? (
               attempts.map((r) => (
-                <div key={r.id} className="flex justify-between border-b py-3 last:border-0">
+                <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 border-b py-3 last:border-0">
                   <span>{r.exam} · {r.date}</span>
-                  <span>{r.score}% · <StatusBadge status={r.result} /></span>
+                  <div className="flex items-center gap-2">
+                    <span>{r.score}% · <StatusBadge status={r.result} /></span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={!r.hasIdentityPhoto}
+                      onClick={() => setIdentityAttemptId(r.id)}
+                    >
+                      View ID
+                    </Button>
+                  </div>
                 </div>
               ))
             ) : (

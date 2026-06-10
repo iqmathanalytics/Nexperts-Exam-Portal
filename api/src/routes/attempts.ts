@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { analyzeProctoringFrame } from "../services/proctoring-analyze.js";
 import { getSchedulePhase, computeAttemptEndsAt, isSlotAlignedStart } from "../services/exam-scheduling.js";
+import { normalizeIdentityPhoto } from "../lib/identity-photo.js";
 
 const violationDedupMs = 10_000;
 const multiplePersonsDedupMs = 30_000;
@@ -120,7 +121,12 @@ async function buildExamStartPayload(
 
 router.post("/start", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
   try {
-    const { examId } = z.object({ examId: z.string() }).parse(req.body);
+    const { examId, identityPhoto } = z
+      .object({
+        examId: z.string(),
+        identityPhoto: z.string().optional(),
+      })
+      .parse(req.body);
     const userId = req.user!.sub;
 
     const paid = await prisma.payment.findFirst({
@@ -186,8 +192,26 @@ router.post("/start", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, re
       return res.json({ ...payload, resumed: true });
     }
 
+    let storedIdentityPhoto: string | null = null;
+    if (exam.webcam) {
+      if (!identityPhoto) {
+        return res.status(400).json({
+          error: "Identity verification photo is required. Hold your ID next to your face and capture a clear photo.",
+        });
+      }
+      storedIdentityPhoto = normalizeIdentityPhoto(identityPhoto);
+      if (!storedIdentityPhoto) {
+        return res.status(400).json({ error: "Invalid identity photo. Please capture the photo again." });
+      }
+    }
+
     const attempt = await prisma.examAttempt.create({
-      data: { userId, examId, result: AttemptResult.IN_PROGRESS },
+      data: {
+        userId,
+        examId,
+        result: AttemptResult.IN_PROGRESS,
+        identityPhoto: storedIdentityPhoto,
+      },
     });
 
     if (paid.scheduledStartAt && !isSlotAlignedStart(paid.scheduledStartAt)) {

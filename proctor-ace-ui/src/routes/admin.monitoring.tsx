@@ -3,10 +3,12 @@ import { useEffect, useMemo, useState } from "react";
 import { apiAuth } from "@/lib/api-auth";
 import { usePageDataLoad } from "@/contexts/page-load-context";
 import { useAdminSearch } from "@/contexts/admin-search-context";
-import { AlertTriangle, Monitor, Maximize2, Smartphone } from "lucide-react";
+import { AlertTriangle, Monitor, Maximize2, Smartphone, IdCard } from "lucide-react";
 import { PageHeader, StatusBadge } from "@/components/admin-bits";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { IdentityPhotoDialog } from "@/components/identity-photo-dialog";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
@@ -20,6 +22,7 @@ type Session = {
   started: string;
   warnings: number;
   status: string;
+  hasIdentityPhoto?: boolean;
   violations: { type: string; time: string }[];
 };
 
@@ -51,6 +54,7 @@ export const Route = createFileRoute("/admin/monitoring")({
 function ExamMonitoring() {
   const [filterExam, setFilterExam] = useState("all");
   const [filterStudent, setFilterStudent] = useState("all");
+  const [identityAttemptId, setIdentityAttemptId] = useState<string | null>(null);
   const { query: globalSearch } = useAdminSearch();
 
   const { data, refetch } = usePageDataLoad(
@@ -121,6 +125,12 @@ function ExamMonitoring() {
 
   return (
     <div className="space-y-6">
+      <IdentityPhotoDialog
+        attemptId={identityAttemptId}
+        open={!!identityAttemptId}
+        onOpenChange={(open) => !open && setIdentityAttemptId(null)}
+      />
+
       <PageHeader
         title="Exam monitoring"
         sub="Live violation tracking and session status (no live video feed for admins)."
@@ -202,6 +212,19 @@ function ExamMonitoring() {
                 ))}
               </div>
             )}
+
+            <div className="mt-4 border-t pt-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                disabled={!s.hasIdentityPhoto}
+                onClick={() => setIdentityAttemptId(s.id)}
+              >
+                <IdCard className="mr-2 h-4 w-4" />
+                {s.hasIdentityPhoto ? "View ID verification" : "No ID photo yet"}
+              </Button>
+            </div>
           </div>
         ))}
       </div>

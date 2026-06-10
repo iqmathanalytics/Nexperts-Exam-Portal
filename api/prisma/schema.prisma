@@ -235,14 +235,15 @@ model Payment {
 }
 
 model ExamAttempt {
-  id        String         @id @default(cuid())
-  userId    String
-  examId    String
-  score     Int?
-  result    AttemptResult  @default(IN_PROGRESS)
-  startedAt DateTime       @default(now())
-  endedAt   DateTime?
-  warnings  Int            @default(0)
+  id             String         @id @default(cuid())
+  userId         String
+  examId         String
+  score          Int?
+  result         AttemptResult  @default(IN_PROGRESS)
+  startedAt      DateTime       @default(now())
+  endedAt        DateTime?
+  warnings       Int            @default(0)
+  identityPhoto  String?        @db.LongText
 
   user       User                  @relation(fields: [userId], references: [id])
   exam       Exam                  @relation(fields: [examId], references: [id])

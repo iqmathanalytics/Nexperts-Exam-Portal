@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Camera, Maximize2, Shield } from "lucide-react";
+import { Camera, IdCard, Maximize2, Shield } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,46 +10,49 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { acquireExamCamera, getExamCameraStream, releaseExamCamera } from "@/lib/exam-media-stream";
+import { captureVideoFrame } from "@/lib/capture-video-frame";
 
 type Props = {
   open: boolean;
   examTitle: string;
   requiresWebcam: boolean;
   onCancel: () => void;
-  onReady: () => void;
+  onReady: (identityPhoto?: string) => void;
 };
 
 export function ExamPrestartDialog({ open, examTitle, requiresWebcam, onCancel, onReady }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [step, setStep] = useState<"intro" | "preview" | "ready">("intro");
+  const [step, setStep] = useState<"intro" | "verify">("intro");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [identityPhoto, setIdentityPhoto] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
-      setStep(requiresWebcam ? "intro" : "ready");
+      setStep(requiresWebcam ? "intro" : "verify");
       setError("");
+      setIdentityPhoto(null);
       return;
     }
-    if (!requiresWebcam) setStep("ready");
+    if (!requiresWebcam) setStep("verify");
   }, [open, requiresWebcam]);
 
   useEffect(() => {
-    if (!open || step !== "preview") return;
+    if (!open || step !== "verify" || !requiresWebcam) return;
     const stream = getExamCameraStream();
     const video = videoRef.current;
     if (video && stream) {
       video.srcObject = stream;
       void video.play().catch(() => {});
     }
-  }, [open, step]);
+  }, [open, step, requiresWebcam, identityPhoto]);
 
   const requestCamera = async () => {
     setLoading(true);
     setError("");
     try {
       await acquireExamCamera();
-      setStep("preview");
+      setStep("verify");
     } catch {
       setError("Camera permission is required to start this exam. Allow access in your browser settings and try again.");
       releaseExamCamera();
@@ -58,14 +61,38 @@ export function ExamPrestartDialog({ open, examTitle, requiresWebcam, onCancel, 
     }
   };
 
+  const captureIdentityPhoto = () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const frame = captureVideoFrame(video);
+    if (!frame) {
+      setError("Could not capture photo. Wait for the camera preview to load and try again.");
+      return;
+    }
+    setIdentityPhoto(frame);
+    setError("");
+  };
+
   const handleCancel = () => {
     releaseExamCamera();
     onCancel();
   };
 
+  const handleBegin = () => {
+    if (requiresWebcam && !identityPhoto) {
+      setError("Capture a photo with your face and ID card before starting.");
+      return;
+    }
+    onReady(identityPhoto ?? undefined);
+  };
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) handleCancel(); }}>
-      <DialogContent className="max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+      <DialogContent
+        className="max-w-3xl"
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle className="font-display">Before you begin</DialogTitle>
           <DialogDescription>{examTitle}</DialogDescription>
@@ -74,34 +101,59 @@ export function ExamPrestartDialog({ open, examTitle, requiresWebcam, onCancel, 
         <ul className="space-y-2 text-sm text-muted-foreground">
           <li className="flex items-center gap-2"><Shield className="h-4 w-4 text-accent" /> Proctored session — violations are logged</li>
           {requiresWebcam && (
-            <li className="flex items-center gap-2"><Camera className="h-4 w-4 text-accent" /> Webcam must stay on for the full exam</li>
+            <>
+              <li className="flex items-center gap-2"><Camera className="h-4 w-4 text-accent" /> Webcam must stay on for the full exam</li>
+              <li className="flex items-center gap-2"><IdCard className="h-4 w-4 text-accent" /> Hold your ID next to your face — both must be clearly visible</li>
+            </>
           )}
           <li className="flex items-center gap-2"><Maximize2 className="h-4 w-4 text-accent" /> Exam runs in fullscreen automatically</li>
         </ul>
 
-        {requiresWebcam && (
-          <div className="space-y-3">
-            <div className="relative aspect-video overflow-hidden rounded-lg border border-border bg-muted">
-              <video
-                ref={videoRef}
-                className="h-full w-full object-cover"
-                style={{ transform: "scaleX(-1)" }}
-                muted
-                playsInline
-                autoPlay
-              />
-              {step === "intro" && (
-                <div className="absolute inset-0 flex items-center justify-center bg-muted/90 px-4 text-center text-sm text-muted-foreground">
-                  Your live camera preview will appear here after you allow access
-                </div>
-              )}
-            </div>
-            {step === "preview" && (
-              <p className="text-sm text-muted-foreground">
-                This is your live camera preview. Make sure your face is clearly visible, then start the exam.
+        {requiresWebcam && step === "verify" && (
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Live camera</p>
+              <div className="relative aspect-video overflow-hidden rounded-lg border border-border bg-muted">
+                <video
+                  ref={videoRef}
+                  className="h-full w-full object-cover"
+                  style={{ transform: "scaleX(-1)" }}
+                  muted
+                  playsInline
+                  autoPlay
+                />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Position your face and ID in frame, then capture on the right.
               </p>
-            )}
-            {error && <p className="text-sm text-destructive">{error}</p>}
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Identity verification photo</p>
+              <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-lg border border-border bg-muted">
+                {identityPhoto ? (
+                  <img src={identityPhoto} alt="Captured identity verification" className="h-full w-full object-cover" />
+                ) : (
+                  <div className="px-4 text-center text-sm text-muted-foreground">
+                    Your captured photo will appear here
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={captureIdentityPhoto}>
+                  {identityPhoto ? "Retake photo" : "Capture photo"}
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Hold your government ID beside your face. Ensure your name, photo, and ID details are readable.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {requiresWebcam && step === "intro" && (
+          <div className="rounded-lg border border-dashed border-border bg-muted/40 p-6 text-center text-sm text-muted-foreground">
+            Allow camera access to continue with identity verification.
           </div>
         )}
 
@@ -111,20 +163,22 @@ export function ExamPrestartDialog({ open, examTitle, requiresWebcam, onCancel, 
           </p>
         )}
 
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
         <DialogFooter className="gap-2 sm:justify-end">
           <Button variant="outline" onClick={handleCancel}>Cancel</Button>
           {requiresWebcam && step === "intro" && (
             <Button className="bg-gradient-emerald text-white" onClick={requestCamera} disabled={loading}>
-              {loading ? "Requesting…" : "Allow camera & show preview"}
+              {loading ? "Requesting…" : "Allow camera & continue"}
             </Button>
           )}
-          {requiresWebcam && step === "preview" && (
-            <Button className="bg-gradient-emerald text-white" onClick={onReady}>
+          {requiresWebcam && step === "verify" && (
+            <Button className="bg-gradient-emerald text-white" onClick={handleBegin} disabled={!identityPhoto}>
               Begin exam
             </Button>
           )}
           {!requiresWebcam && (
-            <Button className="bg-gradient-emerald text-white" onClick={onReady}>
+            <Button className="bg-gradient-emerald text-white" onClick={handleBegin}>
               Begin exam
             </Button>
           )}

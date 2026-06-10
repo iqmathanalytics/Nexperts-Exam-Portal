@@ -1281,6 +1281,7 @@ router.get("/users/:id", async (req, res) => {
       date: a.startedAt.toISOString().slice(0, 10),
       score: a.score ?? 0,
       result: a.result === "PASS" ? "Pass" : a.result === "FAIL" ? "Fail" : "In Progress",
+      hasIdentityPhoto: Boolean(a.identityPhoto),
     })),
     payments: user.payments.map((p) => ({
       id: p.id,
@@ -1382,6 +1383,22 @@ router.get("/users/:id/report", async (req, res) => {
 });
 
 // ——— Payments, results, monitoring, certificates ———
+
+router.get("/attempts/:id/identity-photo", async (req, res) => {
+  const attempt = await prisma.examAttempt.findUnique({
+    where: { id: String(req.params.id) },
+    include: { user: true, exam: true },
+  });
+  if (!attempt) return res.status(404).json({ error: "Attempt not found" });
+
+  res.json({
+    photo: attempt.identityPhoto,
+    candidate: attempt.user.fullName,
+    exam: attempt.exam.title,
+    capturedAt: attempt.startedAt.toISOString(),
+  });
+});
+
 router.get("/payments", async (_req, res) => {
   const payments = await prisma.payment.findMany({
     include: { user: true, exam: true, voucher: true },
@@ -1430,6 +1447,7 @@ router.get("/results", async (req, res) => {
       result: a.result === "PASS" ? "Pass" : "Fail",
       date: a.startedAt.toISOString().slice(0, 10),
       attempts: 1,
+      hasIdentityPhoto: Boolean(a.identityPhoto),
     })),
   });
 });
@@ -1466,6 +1484,7 @@ router.get("/monitoring", async (_req, res) => {
       started: s.startedAt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }),
       warnings: s.warnings,
       status: s.warnings >= 3 ? "Flagged" : "In Progress",
+      hasIdentityPhoto: Boolean(s.identityPhoto),
       violations: s.violations.map((v) => ({
         type: v.type,
         time: v.createdAt.toLocaleTimeString("en", { hour: "2-digit", minute: "2-digit" }),

@@ -99,7 +99,7 @@ function MyExams() {
     }
   }, [startExamFromSearch, exams, navigate]);
 
-  const beginExamApi = async (examId: string) => {
+  const beginExamApi = async (examId: string, identityPhoto?: string) => {
     setStarting(examId);
     let attemptId: string | null = null;
     try {
@@ -109,7 +109,10 @@ function MyExams() {
 
       const res = await apiAuth<ExamStartPayload & { resumed?: boolean }>("/api/attempts/start", {
         method: "POST",
-        body: JSON.stringify({ examId }),
+        body: JSON.stringify({
+          examId,
+          ...(identityPhoto ? { identityPhoto } : {}),
+        }),
       });
 
       if (!res.questions?.length || !res.endsAt || !res.exam?.title) {
@@ -250,7 +253,7 @@ function MyExams() {
           releaseExamCamera();
           setPrestartExam(null);
         }}
-        onReady={() => prestartExam && beginExamApi(prestartExam.id)}
+        onReady={(identityPhoto) => prestartExam && beginExamApi(prestartExam.id, identityPhoto)}
       />
 
       {exams.length === 0 ? (

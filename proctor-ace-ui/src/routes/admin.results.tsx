@@ -5,12 +5,23 @@ import { usePageDataLoad } from "@/contexts/page-load-context";
 import { useAdminSearch } from "@/contexts/admin-search-context";
 import { Pie, PieChart, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { PageHeader, StatusBadge, DataToolbar } from "@/components/admin-bits";
+import { Button } from "@/components/ui/button";
+import { IdentityPhotoDialog } from "@/components/identity-photo-dialog";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 
-type ResultRow = { id: string; candidate: string; exam: string; score: number; result: string; date: string; attempts?: number };
+type ResultRow = {
+  id: string;
+  candidate: string;
+  exam: string;
+  score: number;
+  result: string;
+  date: string;
+  attempts?: number;
+  hasIdentityPhoto?: boolean;
+};
 
 type ResultsData = {
   results: ResultRow[];
@@ -24,6 +35,7 @@ export const Route = createFileRoute("/admin/results")({
 function AdminResults() {
   const { query: search, setQuery: setSearch } = useAdminSearch();
   const [filterExam, setFilterExam] = useState("all");
+  const [identityAttemptId, setIdentityAttemptId] = useState<string | null>(null);
 
   const { data } = usePageDataLoad(
     "admin-results",
@@ -52,6 +64,12 @@ function AdminResults() {
 
   return (
     <div className="space-y-6">
+      <IdentityPhotoDialog
+        attemptId={identityAttemptId}
+        open={!!identityAttemptId}
+        onOpenChange={(open) => !open && setIdentityAttemptId(null)}
+      />
+
       <PageHeader title="Results" sub="Pass/fail analytics and score filtering." />
 
       <div className="flex flex-wrap items-end gap-4">
@@ -90,7 +108,7 @@ function AdminResults() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b bg-muted/40 text-left text-muted-foreground">
-                  <th className="p-4">Candidate</th><th>Exam</th><th>Score</th><th>Attempts</th><th>Result</th><th>Date</th>
+                  <th className="p-4">Candidate</th><th>Exam</th><th>Score</th><th>Attempts</th><th>Result</th><th>Date</th><th className="p-4 text-right">ID</th>
                 </tr>
               </thead>
               <tbody>
@@ -102,6 +120,16 @@ function AdminResults() {
                     <td className="p-4">{r.attempts ?? 1}</td>
                     <td className="p-4"><StatusBadge status={r.result} /></td>
                     <td className="p-4">{r.date}</td>
+                    <td className="p-4 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={!r.hasIdentityPhoto}
+                        onClick={() => setIdentityAttemptId(r.id)}
+                      >
+                        View
+                      </Button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -21,7 +21,7 @@ export async function api<T>(
   };
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_URL}${path}`, { ...rest, headers });
+  const res = await fetch(`${API_URL}${path}`, { cache: "no-store", ...rest, headers });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     const payload = data as { error?: string; detail?: string };

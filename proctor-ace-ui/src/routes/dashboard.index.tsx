@@ -73,7 +73,7 @@ function DashboardHome() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="truncate text-sm font-medium">{a.examTitle}</div>
-                <div className="text-xs text-muted-foreground">
+                <div className="text-xs text-muted-foreground" suppressHydrationWarning>
                   {formatAttemptDateTime(a.startedAt)} · scored {a.score}%
                 </div>
               </div>

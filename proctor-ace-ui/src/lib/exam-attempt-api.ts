@@ -46,6 +46,7 @@ export function abandonExamAttemptKeepalive(attemptId: string) {
       },
       body: "{}",
       keepalive: true,
+      cache: "no-store",
     });
   } catch {
     /* ignore */

@@ -64,10 +64,9 @@ function AdminNotifications() {
   };
 
   useEffect(() => {
+    if (!open) return;
     load();
-    const t = setInterval(load, 60000);
-    return () => clearInterval(t);
-  }, []);
+  }, [open]);
 
   const markRead = () => {
     if (unread === 0) return;
@@ -168,16 +167,13 @@ function AdminHeaderSearch() {
 export function AdminLayout() {
   const navigate = useNavigate();
   const path = useRouterState({ select: (s) => s.location.pathname });
-  const [mounted, setMounted] = useState(false);
-  const [name, setName] = useState("");
+  const auth = getAuth();
+  const [name, setName] = useState(auth?.fullName ?? auth?.email ?? "Admin");
 
   useEffect(() => {
-    setMounted(true);
-    const auth = getAuth();
-    setName(auth?.fullName ?? auth?.email ?? "Admin");
-    apiAuth<{ user: { fullName: string } }>("/api/auth/me")
-      .then((d) => setName(d.user.fullName))
-      .catch(() => {});
+    const session = getAuth();
+    if (session?.fullName) setName(session.fullName);
+    else if (session?.email) setName(session.email);
   }, []);
 
   const logout = () => {
@@ -187,9 +183,7 @@ export function AdminLayout() {
   };
 
   const current = nav.find((n) => (n.exact ? path === n.to : path.startsWith(n.to)));
-  const initials = mounted
-    ? name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase() || "··"
-    : "··";
+  const initials = name.split(" ").map((p) => p[0]).join("").slice(0, 2).toUpperCase() || "··";
 
   return (
     <PageLoadProvider>

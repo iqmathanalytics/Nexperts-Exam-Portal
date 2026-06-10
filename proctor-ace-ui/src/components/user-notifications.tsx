@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Bell, CreditCard, Award } from "lucide-react";
 import { apiAuth } from "@/lib/api-auth";
@@ -27,22 +27,24 @@ export function UserNotifications() {
   const [items, setItems] = useState<Notification[]>([]);
   const [unread, setUnread] = useState(0);
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [resuming, setResuming] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
+    setLoading(true);
     apiAuth<{ notifications: Notification[]; unreadCount: number }>("/api/candidate/notifications")
       .then((d) => {
         setItems(d.notifications);
         setUnread(d.unreadCount);
       })
-      .catch(() => {});
-  };
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   useEffect(() => {
+    if (!open) return;
     load();
-    const t = setInterval(load, 60000);
-    return () => clearInterval(t);
-  }, []);
+  }, [open, load]);
 
   const resumePayment = async (paymentId: string) => {
     setResuming(paymentId);
@@ -79,7 +81,9 @@ export function UserNotifications() {
           )}
         </div>
         <div className="max-h-80 overflow-y-auto">
-          {items.length === 0 ? (
+          {loading ? (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">Loading…</p>
+          ) : items.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-muted-foreground">No notifications</p>
           ) : (
             items.map((n) => (

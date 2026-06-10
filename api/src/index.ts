@@ -50,6 +50,12 @@ app.post(
 
 app.use(express.json({ limit: "15mb" }));
 
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+  next();
+});
+
 app.get("/api/health", async (_req, res) => {
   let database = false;
   try {

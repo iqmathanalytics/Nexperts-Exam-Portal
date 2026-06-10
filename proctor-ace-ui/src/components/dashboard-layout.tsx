@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
 import { clearAuth, getAuth } from "@/lib/auth";
-import { apiAuth } from "@/lib/api-auth";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,21 +48,14 @@ export function DashboardLayout() {
   const path = useRouterState({ select: (s) => s.location.pathname });
   const isExamRoute = /\/dashboard\/exam\//.test(path);
 
-  const [mounted, setMounted] = useState(false);
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const auth = getAuth();
+  const [name, setName] = useState(auth?.fullName ?? "Candidate");
+  const [email, setEmail] = useState(auth?.email ?? "");
 
   useEffect(() => {
-    setMounted(true);
-    const auth = getAuth();
-    setName(auth?.fullName ?? "Candidate");
-    setEmail(auth?.email ?? "");
-    apiAuth<{ user: { fullName: string; email: string } }>("/api/auth/me")
-      .then((d) => {
-        setName(d.user.fullName);
-        setEmail(d.user.email);
-      })
-      .catch(() => {});
+    const session = getAuth();
+    if (session?.fullName) setName(session.fullName);
+    if (session?.email) setEmail(session.email);
   }, []);
 
   const logout = () => {
@@ -73,8 +65,8 @@ export function DashboardLayout() {
   };
 
   const current = nav.find((n) => (n.exact ? path === n.to : path.startsWith(n.to)));
-  const initials = mounted ? initialsFrom(name) : "··";
-  const displayName = mounted ? name || "Candidate" : "";
+  const initials = initialsFrom(name);
+  const displayName = name || "Candidate";
 
   if (isExamRoute) {
     return (

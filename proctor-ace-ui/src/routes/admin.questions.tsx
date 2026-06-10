@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Plus, Upload, Eye, Pencil, Trash2, Link2 } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -52,45 +52,6 @@ export const Route = createFileRoute("/admin/questions")({
 const FILTER_ALL = "all";
 const FILTER_UNASSIGNED = "unassigned";
 
-// Module-level cache — survives route navigation within the same session
-let _qbCache: { questions: QuestionRow[]; total: number; filterKey: string } | null = null;
-
-const makeQBFilterKey = (
-  examId: string,
-  type: string,
-  topic: string,
-  difficulty: string,
-  search: string,
-) => `${examId}|${type}|${topic}|${difficulty}|${search.trim()}`;
-
-function getQBLocalKey(): string | null {
-  try {
-    const auth = JSON.parse(localStorage.getItem("nx-auth") || "null") as { email?: string } | null;
-    return auth?.email ? `nx-qb-cache-${auth.email}` : null;
-  } catch { return null; }
-}
-
-// Restore from localStorage on module load so first render is instant after a page refresh
-if (typeof localStorage !== "undefined" && !_qbCache) {
-  try {
-    const lsKey = getQBLocalKey();
-    if (lsKey) {
-      const raw = localStorage.getItem(lsKey);
-      if (raw) {
-        const { data, savedAt } = JSON.parse(raw) as {
-          data: typeof _qbCache;
-          savedAt: number;
-        };
-        if (Date.now() - savedAt < 10 * 60 * 1000) {
-          _qbCache = data;
-        } else {
-          localStorage.removeItem(lsKey);
-        }
-      }
-    }
-  } catch {}
-}
-
 const emptyQuestion = (examId?: string): QuestionFormState => ({
   examId: examId || undefined,
   title: "",
@@ -120,16 +81,9 @@ function QuestionBank() {
     [],
   );
 
-  // Restore from module-level cache for instant display on revisit
-  const initialFilterKey = makeQBFilterKey(
-    preselectedExamId ?? FILTER_ALL, FILTER_ALL, FILTER_ALL, FILTER_ALL, "",
-  );
-  const initialCached = _qbCache?.filterKey === initialFilterKey ? _qbCache : null;
-
-  const [questions, setQuestions] = useState<QuestionRow[]>(initialCached?.questions ?? []);
-  const [totalCount, setTotalCount] = useState(initialCached?.total ?? 0);
-  const [listLoading, setListLoading] = useState(!initialCached);
-  const initialHadCache = useRef(!!initialCached);
+  const [questions, setQuestions] = useState<QuestionRow[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [listLoading, setListLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [debouncedSearch, setDebouncedSearch] = useState(search);
   const { data: _filterOpts } = usePageDataLoad(
@@ -167,20 +121,6 @@ function QuestionBank() {
       );
       setTotalCount(res.total);
       setQuestions((prev) => (append ? [...prev, ...res.questions] : res.questions));
-      if (offset === 0 && !append) {
-        const newFilterKey = makeQBFilterKey(filterExamId, filterType, filterTopic, filterDifficulty, debouncedSearch);
-        _qbCache = { questions: res.questions, total: res.total, filterKey: newFilterKey };
-        // Persist default-filter result so page refresh is instant
-        const defaultKey = makeQBFilterKey(FILTER_ALL, FILTER_ALL, FILTER_ALL, FILTER_ALL, "");
-        if (newFilterKey === defaultKey) {
-          try {
-            const lsKey = getQBLocalKey();
-            if (lsKey) {
-              localStorage.setItem(lsKey, JSON.stringify({ data: _qbCache, savedAt: Date.now() }));
-            }
-          } catch {}
-        }
-      }
       return res;
     },
     [filterExamId, debouncedSearch, filterType, filterTopic, filterDifficulty],
@@ -188,12 +128,8 @@ function QuestionBank() {
 
   useEffect(() => {
     let cancelled = false;
-    const skipClear = initialHadCache.current;
-    initialHadCache.current = false;
-    if (!skipClear) {
-      setListLoading(true);
-      setQuestions([]);
-    }
+    setListLoading(true);
+    setQuestions([]);
     void fetchQuestionsPage(0, QB_INITIAL_LIMIT, false)
       .catch(() => {
         if (!cancelled) toast.error("Could not load questions");

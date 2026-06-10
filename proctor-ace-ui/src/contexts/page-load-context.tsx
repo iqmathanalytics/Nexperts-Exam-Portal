@@ -4,11 +4,9 @@ import {
   useContext,
   useEffect,
   useLayoutEffect,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { useRouterState } from "@tanstack/react-router";
 
 type PageLoadContextValue = {
   registerLoading: (id: string, loading: boolean) => void;
@@ -22,34 +20,17 @@ function computeReady(loaders: Map<string, boolean>) {
 }
 
 export function PageLoadProvider({ children }: { children: ReactNode }) {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [pageReady, setPageReady] = useState(true);
-  const loadersRef = useRef<Map<string, boolean>>(new Map());
-  const epochRef = useRef(0);
-
-  useLayoutEffect(() => {
-    epochRef.current += 1;
-    const epoch = epochRef.current;
-    loadersRef.current.clear();
-    setPageReady(false);
-
-    const outer = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        if (epoch !== epochRef.current) return;
-        setPageReady(computeReady(loadersRef.current));
-      });
-    });
-
-    return () => cancelAnimationFrame(outer);
-  }, [pathname]);
+  const [loaders, setLoaders] = useState<Map<string, boolean>>(() => new Map());
 
   const registerLoading = useCallback((id: string, loading: boolean) => {
-    if (loading) {
-      loadersRef.current.set(id, true);
-    } else {
-      loadersRef.current.delete(id);
-    }
-    setPageReady(computeReady(loadersRef.current));
+    setLoaders((prev) => {
+      const next = new Map(prev);
+      if (loading) next.set(id, true);
+      else next.delete(id);
+      setPageReady(computeReady(next));
+      return next;
+    });
   }, []);
 
   return (

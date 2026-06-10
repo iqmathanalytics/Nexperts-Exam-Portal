@@ -5,13 +5,13 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import appCss from "../styles.css?url";
 import { BRAND } from "@/lib/branding";
-import { hydratePersistedQueryCache, purgePersistedCandidateCaches } from "@/lib/query-client";
+import { clearPersistedCache } from "@/lib/query-client";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -51,16 +51,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const [mounted, setMounted] = useState(false);
   useEffect(() => {
-    purgePersistedCandidateCaches();
-    hydratePersistedQueryCache(queryClient);
-    setMounted(true);
-  }, [queryClient]);
+    clearPersistedCache();
+  }, []);
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
-        <div className="mobile-shell" style={{ visibility: mounted ? "visible" : "hidden" }}>
+        <div className="mobile-shell">
           <Outlet />
         </div>
         <Toaster richColors position="top-right" />

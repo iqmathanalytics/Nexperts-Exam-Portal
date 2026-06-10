@@ -7,8 +7,9 @@ export function examStatusToUi(status: ExamStatus): "Draft" | "Published" | "Arc
 }
 
 export function examStatusFromUi(status: string): ExamStatus {
-  if (status === "Published") return "PUBLISHED";
-  if (status === "Archived") return "ARCHIVED";
+  const normalized = status.trim().toLowerCase();
+  if (normalized === "published") return "PUBLISHED";
+  if (normalized === "archived") return "ARCHIVED";
   return "DRAFT";
 }
 

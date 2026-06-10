@@ -9,6 +9,7 @@ import {
   formatScheduleForApi,
   getSchedulePhase,
 } from "../services/exam-scheduling.js";
+import { releaseStalePendingPayments } from "../services/pending-payments.js";
 
 const router = Router();
 
@@ -26,16 +27,23 @@ async function examLevel(examId: string): Promise<string> {
 
 router.get("/available-exams", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
   const userId = req.user!.sub;
+  await releaseStalePendingPayments(userId);
+
   const owned = await prisma.payment.findMany({
-    where: { userId, status: { in: [PaymentStatus.PAID, PaymentStatus.PENDING] } },
+    where: { userId, status: PaymentStatus.PAID },
     select: { examId: true },
   });
   const excludeIds = owned.map((p) => p.examId);
+  const now = new Date();
 
   const exams = await prisma.exam.findMany({
     where: {
       status: ExamStatus.PUBLISHED,
-      ...(excludeIds.length > 0 ? { id: { notIn: excludeIds } } : {}),
+      AND: [
+        { OR: [{ startDate: null }, { startDate: { lte: now } }] },
+        { OR: [{ endDate: null }, { endDate: { gte: now } }] },
+        ...(excludeIds.length > 0 ? [{ id: { notIn: excludeIds } }] : []),
+      ],
     },
     orderBy: { createdAt: "desc" },
   });

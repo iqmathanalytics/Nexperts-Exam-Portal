@@ -7,6 +7,7 @@ import { requireAuth, type AuthedRequest } from "../middleware/auth.js";
 import { validateVoucher } from "../services/voucher.js";
 import { getStripe } from "../services/stripe.js";
 import { fulfillPayment, getInvoicePdfBuffer } from "../services/payment-fulfillment.js";
+import { cancelPendingPayment } from "../services/pending-payments.js";
 import { getInvoiceDetails } from "../services/invoice-details.js";
 import { sendPdfDownload, sendPdfJson } from "../services/pdf-buffer.js";
 import { env } from "../lib/env.js";
@@ -163,6 +164,13 @@ router.post("/checkout", requireAuth(Role.CANDIDATE), async (req: AuthedRequest,
     const amount = Math.max(0, subtotal);
     const inv = invoiceId();
     const clientOrigin = resolveClientOrigin(req, returnOrigin);
+
+    const existingPending = await prisma.payment.findFirst({
+      where: { userId, examId, status: PaymentStatus.PENDING },
+    });
+    if (existingPending) {
+      await cancelPendingPayment(existingPending.id, existingPending.stripeSessionId);
+    }
 
     const payment = await prisma.payment.create({
       data: {

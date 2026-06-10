@@ -103,6 +103,7 @@ function AvailableExams() {
       return d.exams ?? [];
     },
     [],
+    { staleTime: 0, refetchOnMount: "always" },
   );
 
   useEffect(() => {
@@ -318,7 +319,7 @@ function AvailableExams() {
       {filtered.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">
           {exams.length === 0
-            ? "You have scheduled or have pending payment for all available exams. Check My Exams or complete pending payments from notifications."
+            ? "No exams are available to purchase right now. If you recently published exams in admin, refresh this page. Complete or cancel any pending payments under Payments & Invoices."
             : "No exams match your search or filters."}
         </p>
       ) : (

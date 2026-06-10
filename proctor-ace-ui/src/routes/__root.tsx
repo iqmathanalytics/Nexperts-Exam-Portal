@@ -11,6 +11,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 import appCss from "../styles.css?url";
 import { BRAND } from "@/lib/branding";
+import { hydratePersistedQueryCache } from "@/lib/query-client";
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
   head: () => ({
@@ -51,7 +52,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
   const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    hydratePersistedQueryCache(queryClient);
+    setMounted(true);
+  }, [queryClient]);
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>

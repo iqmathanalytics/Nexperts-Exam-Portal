@@ -32,5 +32,8 @@ export function usePageDataLoad<T>(
 export function useInvalidateSession() {
   const queryClient = useQueryClient();
   return (id: string, ...deps: unknown[]) =>
-    queryClient.invalidateQueries({ queryKey: sessionQueryKey(id, deps) });
+    queryClient.invalidateQueries({
+      queryKey: sessionQueryKey(id, deps),
+      refetchType: "all",
+    });
 }

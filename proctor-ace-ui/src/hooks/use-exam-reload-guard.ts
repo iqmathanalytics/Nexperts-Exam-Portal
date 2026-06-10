@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { abandonExamAttemptKeepalive } from "@/lib/exam-attempt-api";
 
 export function useExamReloadGuard(
   enabled: boolean,
-  onAbandon?: () => void,
+  attemptId: string,
+  onAbandon?: () => void | Promise<void>,
 ) {
   const [reloadOpen, setReloadOpen] = useState(false);
   const enabledRef = useRef(enabled);
@@ -25,6 +27,7 @@ export function useExamReloadGuard(
       if (!enabledRef.current) return;
       e.preventDefault();
       e.returnValue = "";
+      abandonExamAttemptKeepalive(attemptId);
       onAbandon?.();
       return "";
     };
@@ -35,15 +38,15 @@ export function useExamReloadGuard(
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, [enabled, onAbandon]);
+  }, [enabled, attemptId, onAbandon]);
 
   const stayOnExam = useCallback(() => {
     setReloadOpen(false);
   }, []);
 
-  const confirmReload = useCallback(() => {
-    onAbandon?.();
+  const confirmReload = useCallback(async () => {
     setReloadOpen(false);
+    await onAbandon?.();
     window.location.reload();
   }, [onAbandon]);
 

@@ -76,10 +76,14 @@ export function createQueryClient() {
     },
   });
 
-  hydrateCache(client);
   client.getQueryCache().subscribe(() => persistCache(client));
 
   return client;
+}
+
+/** Call once on the client after mount so SSR markup matches the first client render. */
+export function hydratePersistedQueryCache(client: QueryClient) {
+  hydrateCache(client);
 }
 
 export const sessionQueryKey = (id: string, deps: unknown[] = []) => ["session", id, ...deps] as const;

@@ -1,12 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Clock, AlertTriangle, Loader2 } from "lucide-react";
-import { ApiError } from "@/lib/api-client";
 import { apiAuth } from "@/lib/api-auth";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { ClientOnly } from "@/components/client-only";
 import { ProctoringCapture } from "@/components/proctoring-capture";
 import { FullscreenExitModal } from "@/components/fullscreen-exit-modal";
 import { ExamSubmitConfirmModal } from "@/components/exam-submit-confirm-modal";
@@ -17,10 +18,15 @@ import { QuestionCodeBlock } from "@/components/question-code-block";
 import { parseStoredExamSession, storeExamSession, type ExamStartPayload } from "@/lib/exam-session";
 import { ExamReloadDialog } from "@/components/exam-reload-dialog";
 import { useExamReloadGuard } from "@/hooks/use-exam-reload-guard";
-import { abandonExamAttempt, cancelExamAttempt } from "@/lib/exam-attempt-api";
+import { abandonExamAttempt, cancelExamAttempt, finalizeExamAttempt } from "@/lib/exam-attempt-api";
+import { invalidateExamCaches } from "@/lib/invalidate-exam-caches";
 
 export const Route = createFileRoute("/dashboard/exam/$attemptId")({
-  component: TakeExam,
+  component: () => (
+    <ClientOnly>
+      <TakeExam />
+    </ClientOnly>
+  ),
 });
 
 function blockCopy(e: Event) {
@@ -30,8 +36,11 @@ function blockCopy(e: Event) {
 function TakeExam() {
   const { attemptId } = Route.useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [session, setSession] = useState<ExamStartPayload | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
   const [secondsLeft, setSecondsLeft] = useState(90 * 60);
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
@@ -44,17 +53,20 @@ function TakeExam() {
   const submittingRef = useRef(false);
   const leavingRef = useRef(false);
   const flaggedHandledRef = useRef(false);
+  const leaveAbandonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
-  const handleAbandonForReload = useCallback(() => {
+  const handleAbandonForReload = useCallback(async () => {
     if (leavingRef.current) return;
-    void abandonExamAttempt(attemptId);
-  }, [attemptId]);
+    await abandonExamAttempt(attemptId);
+    invalidateExamCaches(queryClient);
+  }, [attemptId, queryClient]);
 
   const reloadGuardEnabled = examStarted && !loadingSession && !submitting && !leavingRef.current;
 
   const { reloadOpen, stayOnExam, confirmReload } = useExamReloadGuard(
     reloadGuardEnabled,
+    attemptId,
     handleAbandonForReload,
   );
 
@@ -112,7 +124,7 @@ function TakeExam() {
   }, [attemptId, failStartup]);
 
   const exitExam = useCallback(
-    async (message: string) => {
+    async (_message: string) => {
       if (submittingRef.current) return;
       submittingRef.current = true;
       leavingRef.current = true;
@@ -120,21 +132,13 @@ function TakeExam() {
       setFullscreenExitOpen(false);
       setViolationsLimitOpen(false);
 
-      try {
-        if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
-        const res = await apiAuth<{
-          score: number;
-          result: string;
-          passed: boolean;
-          examTitle: string;
-          passScore: number;
-          credentialId: string | null;
-        }>(`/api/attempts/${attemptId}/submit`, {
-          method: "POST",
-          body: JSON.stringify({ answers }),
-        });
-        sessionStorage.removeItem(`exam-${attemptId}`);
-        releaseExamCamera();
+      if (document.fullscreenElement) await document.exitFullscreen().catch(() => {});
+
+      const res = await finalizeExamAttempt(attemptId, answersRef.current);
+      releaseExamCamera();
+      invalidateExamCaches(queryClient);
+
+      if (res) {
         navigate({
           to: "/exam-complete",
           search: {
@@ -146,14 +150,13 @@ function TakeExam() {
             credentialId: res.credentialId ?? "",
           },
         });
-      } catch (e) {
-        releaseExamCamera();
-        sessionStorage.removeItem(`exam-${attemptId}`);
-        toast.error(e instanceof ApiError ? e.message : "Exam ended");
-        navigate({ to: "/dashboard/my-exams" });
+        return;
       }
+
+      toast.error("Exam ended — your attempt has been recorded.");
+      navigate({ to: "/dashboard/my-exams" });
     },
-    [attemptId, answers, navigate],
+    [attemptId, navigate, queryClient, session?.exam.passScore, session?.exam.title],
   );
 
   const submitExam = useCallback(
@@ -265,11 +268,25 @@ function TakeExam() {
     };
   }, []);
 
-  useEffect(() => () => {
-    if (!leavingRef.current && document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
+  useEffect(() => {
+    if (leaveAbandonTimerRef.current) {
+      clearTimeout(leaveAbandonTimerRef.current);
+      leaveAbandonTimerRef.current = null;
     }
-  }, []);
+  }, [attemptId]);
+
+  useEffect(() => {
+    return () => {
+      if (!leavingRef.current && !submittingRef.current) {
+        leaveAbandonTimerRef.current = setTimeout(() => {
+          void abandonExamAttempt(attemptId).then(() => invalidateExamCaches(queryClient));
+        }, 50);
+      }
+      if (!leavingRef.current && document.fullscreenElement) {
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+  }, [attemptId, queryClient]);
 
   const mm = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const ss = String(secondsLeft % 60).padStart(2, "0");

@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Award, LayoutDashboard, ClipboardList, History, CheckCircle2, XCircle, ArrowRight,
 } from "lucide-react";
@@ -6,6 +8,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth";
+import { invalidateExamCaches } from "@/lib/invalidate-exam-caches";
 
 export const Route = createFileRoute("/exam-complete")({
   beforeLoad: () => requireAuth("candidate"),
@@ -23,6 +26,11 @@ export const Route = createFileRoute("/exam-complete")({
 
 function ExamCompletePage() {
   const { score, result, passed, exam, passScore, credentialId } = Route.useSearch();
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    invalidateExamCaches(queryClient);
+  }, [queryClient]);
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4 py-12">

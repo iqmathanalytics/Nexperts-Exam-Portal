@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Camera, IdCard, Maximize2, Shield } from "lucide-react";
 import {
   Dialog,
@@ -42,6 +43,11 @@ export function ExamPrestartDialog({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [identityPhoto, setIdentityPhoto] = useState<string | null>(null);
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!open) {
@@ -106,9 +112,12 @@ export function ExamPrestartDialog({
     onReady(identityPhoto ?? undefined);
   };
 
+  const startingOverlay =
+    starting && portalReady ? createPortal(<ExamStartingOverlay />, document.body) : null;
+
   return (
     <>
-    {starting && <ExamStartingOverlay />}
+    {startingOverlay}
     <Dialog open={open} onOpenChange={(v) => { if (!v && !starting) handleCancel(); }}>
       <DialogContent
         className="max-w-3xl"

@@ -345,17 +345,39 @@ router.delete("/:id/cancel", requireAuth(Role.CANDIDATE), async (req: AuthedRequ
   res.json({ ok: true, message: "Attempt cancelled — not counted" });
 });
 
+function formatAttemptResult(attempt: {
+  score: number | null;
+  result: AttemptResult;
+  exam: { title: string; passScore: number };
+}) {
+  const passed = attempt.result === AttemptResult.PASS;
+  return {
+    score: attempt.score ?? 0,
+    result: passed ? "Pass" : "Fail",
+    passed,
+    examTitle: attempt.exam.title,
+    passScore: attempt.exam.passScore,
+    credentialId: null as string | null,
+  };
+}
+
 router.post("/:id/abandon", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
   const attempt = await prisma.examAttempt.findFirst({
-    where: { id: attemptId(req), userId: req.user!.sub, result: AttemptResult.IN_PROGRESS },
+    where: { id: attemptId(req), userId: req.user!.sub },
+    include: { exam: true },
   });
-  if (!attempt) return res.status(404).json({ error: "Active attempt not found" });
+  if (!attempt?.exam) return res.status(404).json({ error: "Attempt not found" });
 
-  await prisma.examAttempt.update({
+  if (attempt.result !== AttemptResult.IN_PROGRESS) {
+    return res.json({ ok: true, alreadyEnded: true, ...formatAttemptResult(attempt) });
+  }
+
+  const updated = await prisma.examAttempt.update({
     where: { id: attempt.id },
     data: { result: AttemptResult.FAIL, score: 0, endedAt: new Date() },
+    include: { exam: true },
   });
-  res.json({ ok: true, message: "Attempt ended due to page reload" });
+  res.json({ ok: true, message: "Attempt ended", ...formatAttemptResult(updated) });
 });
 
 router.post("/:id/submit", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
@@ -365,6 +387,18 @@ router.post("/:id/submit", requireAuth(Role.CANDIDATE), async (req: AuthedReques
     include: { exam: true },
   });
   if (!attempt?.exam) return res.status(404).json({ error: "Attempt not found" });
+
+  if (attempt.result !== AttemptResult.IN_PROGRESS) {
+    const cert = await prisma.certificate.findFirst({
+      where: { userId: req.user!.sub, examId: attempt.examId },
+      orderBy: { issuedOn: "desc" },
+    });
+    return res.json({
+      ...formatAttemptResult(attempt),
+      credentialId: cert?.credentialId ?? null,
+      alreadySubmitted: true,
+    });
+  }
 
   const qs = await ensureAttemptQuestions(
     attempt.id,
@@ -377,7 +411,7 @@ router.post("/:id/submit", requireAuth(Role.CANDIDATE), async (req: AuthedReques
   for (const q of qs) {
     if (answers[q.id] === q.correctAnswer) correct++;
   }
-  const score = Math.round((correct / qs.length) * 100);
+  const score = qs.length > 0 ? Math.round((correct / qs.length) * 100) : 0;
   const passed = score >= attempt.exam.passScore;
 
   await prisma.examAttempt.update({

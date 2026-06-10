@@ -53,7 +53,7 @@ function ExamMonitoring() {
   const [filterStudent, setFilterStudent] = useState("all");
   const { query: globalSearch } = useAdminSearch();
 
-  const { data, refetch } = usePageDataLoad(
+  const { data, refetch, isPending } = usePageDataLoad(
     "monitoring",
     async (): Promise<MonitoringData> => {
       const d = await apiAuth<MonitoringData>("/api/admin/monitoring");
@@ -154,12 +154,27 @@ function ExamMonitoring() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {filteredSessions.length === 0 && (
+        {isPending && Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-2xl border border-border bg-card p-5 shadow-soft space-y-3">
+            <div className="flex items-start justify-between">
+              <div className="space-y-1.5">
+                <div className="h-4 w-28 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-36 animate-pulse rounded bg-muted" />
+              </div>
+              <div className="h-5 w-16 animate-pulse rounded-full bg-muted" />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="h-12 animate-pulse rounded-lg bg-muted" />
+              <div className="h-12 animate-pulse rounded-lg bg-muted" />
+            </div>
+          </div>
+        ))}
+        {!isPending && filteredSessions.length === 0 && (
           <p className="col-span-full text-center text-sm text-muted-foreground">
             {sessions.length === 0 ? "No live exam sessions right now." : "No sessions match filters."}
           </p>
         )}
-        {filteredSessions.map((s) => (
+        {!isPending && filteredSessions.map((s) => (
           <div
             key={s.id}
             className={`rounded-2xl border bg-card p-5 shadow-soft ${s.status === "Flagged" ? "border-destructive/40" : "border-border"}`}

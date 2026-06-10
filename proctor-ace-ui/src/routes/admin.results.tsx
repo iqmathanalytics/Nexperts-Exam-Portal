@@ -25,7 +25,7 @@ function AdminResults() {
   const { query: search, setQuery: setSearch } = useAdminSearch();
   const [filterExam, setFilterExam] = useState("all");
 
-  const { data } = usePageDataLoad(
+  const { data, isPending } = usePageDataLoad(
     "admin-results",
     async (): Promise<ResultsData> => {
       const q = filterExam !== "all" ? `?examId=${filterExam}` : "";
@@ -94,7 +94,17 @@ function AdminResults() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((r) => (
+                {isPending && Array.from({ length: 5 }).map((_, i) => (
+                  <tr key={i} className="border-b">
+                    <td className="p-4"><div className="h-4 w-28 animate-pulse rounded bg-muted" /></td>
+                    <td className="p-4"><div className="h-4 w-32 animate-pulse rounded bg-muted" /></td>
+                    <td className="p-4"><div className="h-4 w-12 animate-pulse rounded bg-muted" /></td>
+                    <td className="p-4"><div className="h-4 w-8 animate-pulse rounded bg-muted" /></td>
+                    <td className="p-4"><div className="h-5 w-12 animate-pulse rounded-full bg-muted" /></td>
+                    <td className="p-4"><div className="h-4 w-20 animate-pulse rounded bg-muted" /></td>
+                  </tr>
+                ))}
+                {!isPending && filtered.map((r) => (
                   <tr key={r.id} className="border-b hover:bg-muted/20">
                     <td className="p-4 font-medium">{r.candidate}</td>
                     <td className="p-4">{r.exam}</td>

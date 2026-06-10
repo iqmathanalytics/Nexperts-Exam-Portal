@@ -1,4 +1,5 @@
 import { redirect } from "@tanstack/react-router";
+import { clearPersistedCache } from "@/lib/query-client";
 
 export type AuthRole = "candidate" | "admin";
 
@@ -76,6 +77,7 @@ export function setAuth(session: AuthSession) {
 }
 
 export function clearAuth() {
+  clearPersistedCache();
   localStorage.removeItem(STORAGE_KEY);
   writeCookieSession(null);
 }

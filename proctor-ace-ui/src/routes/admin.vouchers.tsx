@@ -85,7 +85,7 @@ export const Route = createFileRoute("/admin/vouchers")({
 function AdminVouchers() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState<BatchForm>(emptyForm());
-  const { data: batches = [], refetch } = usePageDataLoad(
+  const { data: batches = [], refetch, isPending } = usePageDataLoad(
     "admin-vouchers",
     async () => {
       const d = await apiAuth<{ batches: BatchRow[] }>("/api/admin/voucher-batches");
@@ -161,9 +161,21 @@ function AdminVouchers() {
       />
 
       <div className="space-y-3">
-        {batches.length === 0 ? (
+        {isPending && Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-xl border border-border bg-card shadow-soft p-4">
+            <div className="flex items-center gap-3">
+              <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-40 animate-pulse rounded bg-muted" />
+                <div className="h-3 w-64 animate-pulse rounded bg-muted" />
+              </div>
+              <div className="h-6 w-16 animate-pulse rounded bg-muted" />
+            </div>
+          </div>
+        ))}
+        {!isPending && batches.length === 0 ? (
           <p className="text-sm text-muted-foreground">No voucher batches yet.</p>
-        ) : (
+        ) : !isPending && (
           batches.map((b) => {
             const isOpen = expanded === b.id;
             const detail = details[b.id];

@@ -18,7 +18,7 @@ import {
 import { apiAuth } from "@/lib/api-auth";
 import { ApiError } from "@/lib/api-client";
 import { ExamPrestartDialog } from "@/components/exam-prestart-dialog";
-import { acquireExamCamera, releaseExamCamera } from "@/lib/exam-media-stream";
+import { acquireExamCamera, getExamCameraStream, releaseExamCamera, requestFullscreenFromGesture } from "@/lib/exam-media-stream";
 import { storeExamSession, type ExamStartPayload } from "@/lib/exam-session";
 import { cancelExamAttempt } from "@/lib/exam-attempt-api";
 import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
@@ -44,6 +44,7 @@ type PurchasedExam = {
   lastResult?: string;
   lastScore?: number;
   proctoring?: boolean;
+  fullscreen?: boolean;
   webcam?: boolean;
   schedulePhase: SchedulePhase;
   schedule?: {
@@ -103,7 +104,7 @@ function MyExams() {
     setStarting(examId);
     let attemptId: string | null = null;
     try {
-      if (prestartExam?.webcam !== false) {
+      if (prestartExam?.webcam !== false && !getExamCameraStream()) {
         await acquireExamCamera();
       }
 
@@ -163,8 +164,10 @@ function MyExams() {
       return {
         label: "Resume exam",
         disabled: false,
-        action: () =>
-          navigate({ to: "/dashboard/exam/$attemptId", params: { attemptId: e.inProgressAttemptId! } }),
+        action: () => {
+          if (e.fullscreen !== false) requestFullscreenFromGesture();
+          navigate({ to: "/dashboard/exam/$attemptId", params: { attemptId: e.inProgressAttemptId! } });
+        },
       };
     }
     switch (e.schedulePhase) {
@@ -249,11 +252,13 @@ function MyExams() {
         open={!!prestartExam}
         examTitle={prestartExam?.title ?? ""}
         requiresWebcam={prestartExam?.webcam !== false}
+        requiresFullscreen={prestartExam?.fullscreen !== false}
+        starting={!!prestartExam && starting === prestartExam.id}
         onCancel={() => {
           releaseExamCamera();
           setPrestartExam(null);
         }}
-        onReady={(identityPhoto) => prestartExam && beginExamApi(prestartExam.id, identityPhoto)}
+        onReady={(identityPhoto) => prestartExam && void beginExamApi(prestartExam.id, identityPhoto)}
       />
 
       {exams.length === 0 ? (

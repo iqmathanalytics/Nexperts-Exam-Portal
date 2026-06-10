@@ -21,11 +21,20 @@ export function releaseExamCamera() {
   sharedStream = null;
 }
 
+export function isExamFullscreen(): boolean {
+  return Boolean(document.fullscreenElement);
+}
+
+/** Must be called synchronously inside a click handler (user gesture). */
+export function requestFullscreenFromGesture(): void {
+  if (document.fullscreenElement) return;
+  void document.documentElement.requestFullscreen().catch(() => {});
+}
+
 export async function enterFullscreen(): Promise<boolean> {
+  if (document.fullscreenElement) return true;
   try {
-    if (!document.fullscreenElement) {
-      await document.documentElement.requestFullscreen();
-    }
+    await document.documentElement.requestFullscreen();
     return Boolean(document.fullscreenElement);
   } catch {
     return false;

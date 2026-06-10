@@ -9,18 +9,34 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { acquireExamCamera, getExamCameraStream, releaseExamCamera } from "@/lib/exam-media-stream";
+import {
+  acquireExamCamera,
+  getExamCameraStream,
+  releaseExamCamera,
+  requestFullscreenFromGesture,
+} from "@/lib/exam-media-stream";
+import { ExamStartingOverlay } from "@/components/exam-starting-overlay";
 import { captureVideoFrame } from "@/lib/capture-video-frame";
 
 type Props = {
   open: boolean;
   examTitle: string;
   requiresWebcam: boolean;
+  requiresFullscreen?: boolean;
+  starting?: boolean;
   onCancel: () => void;
   onReady: (identityPhoto?: string) => void;
 };
 
-export function ExamPrestartDialog({ open, examTitle, requiresWebcam, onCancel, onReady }: Props) {
+export function ExamPrestartDialog({
+  open,
+  examTitle,
+  requiresWebcam,
+  requiresFullscreen = true,
+  starting = false,
+  onCancel,
+  onReady,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [step, setStep] = useState<"intro" | "verify">("intro");
   const [error, setError] = useState("");
@@ -79,15 +95,21 @@ export function ExamPrestartDialog({ open, examTitle, requiresWebcam, onCancel, 
   };
 
   const handleBegin = () => {
+    if (starting) return;
     if (requiresWebcam && !identityPhoto) {
       setError("Capture a photo with your face and ID card before starting.");
       return;
+    }
+    if (requiresFullscreen) {
+      requestFullscreenFromGesture();
     }
     onReady(identityPhoto ?? undefined);
   };
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) handleCancel(); }}>
+    <>
+    {starting && <ExamStartingOverlay />}
+    <Dialog open={open} onOpenChange={(v) => { if (!v && !starting) handleCancel(); }}>
       <DialogContent
         className="max-w-3xl"
         onPointerDownOutside={(e) => e.preventDefault()}
@@ -173,17 +195,18 @@ export function ExamPrestartDialog({ open, examTitle, requiresWebcam, onCancel, 
             </Button>
           )}
           {requiresWebcam && step === "verify" && (
-            <Button className="bg-gradient-emerald text-white" onClick={handleBegin} disabled={!identityPhoto}>
-              Begin exam
+            <Button className="bg-gradient-emerald text-white" onClick={handleBegin} disabled={!identityPhoto || starting}>
+              {starting ? "Starting…" : "Begin exam"}
             </Button>
           )}
           {!requiresWebcam && (
-            <Button className="bg-gradient-emerald text-white" onClick={handleBegin}>
-              Begin exam
+            <Button className="bg-gradient-emerald text-white" onClick={handleBegin} disabled={starting}>
+              {starting ? "Starting…" : "Begin exam"}
             </Button>
           )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

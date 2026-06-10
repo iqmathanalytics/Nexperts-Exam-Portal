@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Clock, AlertTriangle } from "lucide-react";
+import { Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { ApiError } from "@/lib/api-client";
 import { apiAuth } from "@/lib/api-auth";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,8 @@ import { ProctoringCapture } from "@/components/proctoring-capture";
 import { FullscreenExitModal } from "@/components/fullscreen-exit-modal";
 import { ExamSubmitConfirmModal } from "@/components/exam-submit-confirm-modal";
 import { ViolationsLimitDialog } from "@/components/violations-limit-dialog";
-import { acquireExamCamera, enterFullscreen, getExamCameraStream, releaseExamCamera } from "@/lib/exam-media-stream";
+import { acquireExamCamera, getExamCameraStream, isExamFullscreen, releaseExamCamera } from "@/lib/exam-media-stream";
+import { ExamFullscreenGate } from "@/components/exam-fullscreen-gate";
 import { QuestionCodeBlock } from "@/components/question-code-block";
 import { parseStoredExamSession, storeExamSession, type ExamStartPayload } from "@/lib/exam-session";
 import { ExamReloadDialog } from "@/components/exam-reload-dialog";
@@ -38,6 +39,7 @@ function TakeExam() {
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const [violationsLimitOpen, setViolationsLimitOpen] = useState(false);
   const [examStarted, setExamStarted] = useState(false);
+  const [awaitingFullscreen, setAwaitingFullscreen] = useState(false);
   const [loadingSession, setLoadingSession] = useState(true);
   const submittingRef = useRef(false);
   const leavingRef = useRef(false);
@@ -79,10 +81,16 @@ function TakeExam() {
       try {
         let data = parseStoredExamSession(attemptId);
         if (!data) {
-          data = await apiAuth<ExamStartPayload>(`/api/attempts/session/${attemptId}`);
-          storeExamSession(attemptId, data);
+          try {
+            data = await apiAuth<ExamStartPayload>(`/api/attempts/session/${attemptId}`);
+            storeExamSession(attemptId, data);
+          } catch {
+            if (!cancelled) await failStartup("Could not load exam session. Start again from My Exams.");
+            return;
+          }
         }
         if (cancelled) return;
+        if (!data.attemptId) data.attemptId = attemptId;
         if (!data.questions?.length) {
           await failStartup("Exam has no questions. Contact support.");
           return;
@@ -181,33 +189,32 @@ function TakeExam() {
   }, [exitExam]);
 
   useEffect(() => {
-    if (!session || examStarted || loadingSession) return;
+    if (!session || examStarted || loadingSession || awaitingFullscreen) return;
 
-    const start = async () => {
+    const prepare = async () => {
       if (session.exam.webcam) {
         let stream = getExamCameraStream();
         if (!stream) {
           try {
             stream = await acquireExamCamera();
-            setMediaStream(stream);
           } catch {
             await failStartup("Camera not ready. Allow camera access and start again from My Exams.");
             return;
           }
         }
+        setMediaStream(stream);
       }
 
-      if (session.exam.fullscreen) {
-        const ok = await enterFullscreen();
-        if (!ok) {
-          await failStartup("Fullscreen is required for this exam. Allow fullscreen and try again.");
-          return;
-        }
+      if (session.exam.fullscreen && !isExamFullscreen()) {
+        setAwaitingFullscreen(true);
+        return;
       }
+
       setExamStarted(true);
     };
-    void start();
-  }, [session, examStarted, loadingSession, failStartup]);
+
+    void prepare();
+  }, [session, examStarted, loadingSession, awaitingFullscreen, failStartup]);
 
   useEffect(() => {
     if (!session?.exam.fullscreen || !examStarted || leavingRef.current) return;
@@ -269,9 +276,22 @@ function TakeExam() {
 
   if (loadingSession || !session?.questions?.length) {
     return (
-      <div className="flex min-h-screen items-center justify-center select-none bg-background">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 select-none bg-background">
+        <Loader2 className="h-10 w-10 animate-spin text-accent" />
         <p className="text-muted-foreground">Loading exam session…</p>
       </div>
+    );
+  }
+
+  if (awaitingFullscreen) {
+    return (
+      <ExamFullscreenGate
+        examTitle={session.exam.title}
+        onEntered={() => {
+          setAwaitingFullscreen(false);
+          setExamStarted(true);
+        }}
+      />
     );
   }
 

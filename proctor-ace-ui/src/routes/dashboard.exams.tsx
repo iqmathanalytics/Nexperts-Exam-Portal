@@ -22,7 +22,7 @@ import {
 } from "@/components/ui/popover";
 import { ApiError } from "@/lib/api-client";
 import { apiAuth } from "@/lib/api-auth";
-import { useInvalidateSession, usePageDataLoad } from "@/contexts/page-load-context";
+import { useInvalidateSession, useCandidateDataLoad } from "@/contexts/page-load-context";
 import type { ScheduleSlot } from "@/lib/exam-schedule";
 import { cn } from "@/lib/utils";
 
@@ -96,7 +96,7 @@ function AvailableExams() {
       setNextDateWithSlots(null);
     }
   };
-  const { data: exams = [] } = usePageDataLoad(
+  const { data: exams = [] } = useCandidateDataLoad(
     "available-exams",
     async () => {
       const d = await apiAuth<{ exams: Exam[] }>("/api/candidate/available-exams");

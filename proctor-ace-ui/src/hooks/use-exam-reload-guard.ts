@@ -4,7 +4,7 @@ import { abandonExamAttemptKeepalive } from "@/lib/exam-attempt-api";
 export function useExamReloadGuard(
   enabled: boolean,
   attemptId: string,
-  onAbandon?: () => void | Promise<void>,
+  onConfirmEnd: () => void | Promise<void>,
 ) {
   const [reloadOpen, setReloadOpen] = useState(false);
   const enabledRef = useRef(enabled);
@@ -28,7 +28,6 @@ export function useExamReloadGuard(
       e.preventDefault();
       e.returnValue = "";
       abandonExamAttemptKeepalive(attemptId);
-      onAbandon?.();
       return "";
     };
 
@@ -38,17 +37,16 @@ export function useExamReloadGuard(
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, [enabled, attemptId, onAbandon]);
+  }, [enabled, attemptId]);
 
   const stayOnExam = useCallback(() => {
     setReloadOpen(false);
   }, []);
 
-  const confirmReload = useCallback(async () => {
+  const confirmEndAttempt = useCallback(() => {
     setReloadOpen(false);
-    await onAbandon?.();
-    window.location.reload();
-  }, [onAbandon]);
+    void onConfirmEnd();
+  }, [onConfirmEnd]);
 
-  return { reloadOpen, stayOnExam, confirmReload };
+  return { reloadOpen, stayOnExam, confirmEndAttempt };
 }

@@ -21,7 +21,7 @@ import { ExamPrestartDialog } from "@/components/exam-prestart-dialog";
 import { acquireExamCamera, getExamCameraStream, releaseExamCamera, requestFullscreenFromGesture } from "@/lib/exam-media-stream";
 import { storeExamSession, type ExamStartPayload } from "@/lib/exam-session";
 import { cancelExamAttempt } from "@/lib/exam-attempt-api";
-import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
+import { useCandidateDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 import type { SchedulePhase } from "@/lib/exam-schedule";
 
 export const Route = createFileRoute("/dashboard/my-exams")({
@@ -77,7 +77,7 @@ function MyExams() {
   const navigate = useNavigate();
   const { startExam: startExamFromSearch } = Route.useSearch();
   const invalidateSession = useInvalidateSession();
-  const { data: exams = [], refetch } = usePageDataLoad(
+  const { data: exams = [], refetch } = useCandidateDataLoad(
     "my-exams",
     async () => {
       const d = await apiAuth<{ exams: PurchasedExam[] }>("/api/candidate/my-exams");

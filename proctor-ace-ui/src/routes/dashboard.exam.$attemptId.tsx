@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Clock, AlertTriangle, Loader2 } from "lucide-react";
 import { apiAuth } from "@/lib/api-auth";
+import { ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
@@ -56,18 +57,19 @@ function TakeExam() {
   const leaveAbandonTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
 
-  const handleAbandonForReload = useCallback(async () => {
-    if (leavingRef.current) return;
-    await abandonExamAttempt(attemptId);
-    invalidateExamCaches(queryClient);
-  }, [attemptId, queryClient]);
-
   const reloadGuardEnabled = examStarted && !loadingSession && !submitting && !leavingRef.current;
 
-  const { reloadOpen, stayOnExam, confirmReload } = useExamReloadGuard(
-    reloadGuardEnabled,
-    attemptId,
-    handleAbandonForReload,
+  const redirectSessionEnded = useCallback(
+    async (message: string) => {
+      if (leavingRef.current) return;
+      leavingRef.current = true;
+      releaseExamCamera();
+      sessionStorage.removeItem(`exam-${attemptId}`);
+      invalidateExamCaches(queryClient);
+      toast.info(message);
+      navigate({ to: "/dashboard/my-exams", search: {} });
+    },
+    [attemptId, navigate, queryClient],
   );
 
   const failStartup = useCallback(
@@ -75,53 +77,12 @@ function TakeExam() {
       leavingRef.current = true;
       await cancelExamAttempt(attemptId);
       releaseExamCamera();
+      invalidateExamCaches(queryClient);
       toast.error(message);
-      navigate({ to: "/dashboard/my-exams" });
+      navigate({ to: "/dashboard/my-exams", search: {} });
     },
-    [attemptId, navigate],
+    [attemptId, navigate, queryClient],
   );
-
-  useEffect(() => {
-    setMediaStream(getExamCameraStream());
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function loadSession() {
-      setLoadingSession(true);
-      try {
-        let data = parseStoredExamSession(attemptId);
-        if (!data) {
-          try {
-            data = await apiAuth<ExamStartPayload>(`/api/attempts/session/${attemptId}`);
-            storeExamSession(attemptId, data);
-          } catch {
-            if (!cancelled) await failStartup("Could not load exam session. Start again from My Exams.");
-            return;
-          }
-        }
-        if (cancelled) return;
-        if (!data.attemptId) data.attemptId = attemptId;
-        if (!data.questions?.length) {
-          await failStartup("Exam has no questions. Contact support.");
-          return;
-        }
-        setSession(data);
-        const ends = new Date(data.endsAt).getTime();
-        setSecondsLeft(Math.max(0, Math.floor((ends - Date.now()) / 1000)));
-      } catch {
-        if (!cancelled) await failStartup("Could not load exam session. Start again from My Exams.");
-      } finally {
-        if (!cancelled) setLoadingSession(false);
-      }
-    }
-
-    void loadSession();
-    return () => {
-      cancelled = true;
-    };
-  }, [attemptId, failStartup]);
 
   const exitExam = useCallback(
     async (_message: string) => {
@@ -154,10 +115,65 @@ function TakeExam() {
       }
 
       toast.error("Exam ended — your attempt has been recorded.");
-      navigate({ to: "/dashboard/my-exams" });
+      navigate({ to: "/dashboard/my-exams", search: {} });
     },
     [attemptId, navigate, queryClient, session?.exam.passScore, session?.exam.title],
   );
+
+  const { reloadOpen, stayOnExam, confirmEndAttempt } = useExamReloadGuard(
+    reloadGuardEnabled,
+    attemptId,
+    () => exitExam("Exam ended — you chose to leave"),
+  );
+
+  useEffect(() => {
+    setMediaStream(getExamCameraStream());
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadSession() {
+      setLoadingSession(true);
+      try {
+        let data = parseStoredExamSession(attemptId);
+        if (!data) {
+          try {
+            data = await apiAuth<ExamStartPayload>(`/api/attempts/session/${attemptId}`);
+            storeExamSession(attemptId, data);
+          } catch (e) {
+            if (cancelled) return;
+            if (e instanceof ApiError && e.status === 404) {
+              await redirectSessionEnded(
+                "This exam session has ended. Start again from My Exams if you have attempts left.",
+              );
+              return;
+            }
+            await failStartup("Could not load exam session. Start again from My Exams.");
+            return;
+          }
+        }
+        if (cancelled) return;
+        if (!data.attemptId) data.attemptId = attemptId;
+        if (!data.questions?.length) {
+          await failStartup("Exam has no questions. Contact support.");
+          return;
+        }
+        setSession(data);
+        const ends = new Date(data.endsAt).getTime();
+        setSecondsLeft(Math.max(0, Math.floor((ends - Date.now()) / 1000)));
+      } catch {
+        if (!cancelled) await failStartup("Could not load exam session. Start again from My Exams.");
+      } finally {
+        if (!cancelled) setLoadingSession(false);
+      }
+    }
+
+    void loadSession();
+    return () => {
+      cancelled = true;
+    };
+  }, [attemptId, failStartup, redirectSessionEnded]);
 
   const submitExam = useCallback(
     async (auto = false) => {
@@ -318,7 +334,7 @@ function TakeExam() {
         open={reloadOpen && !leavingRef.current}
         examTitle={session.exam.title}
         onStay={stayOnExam}
-        onReload={confirmReload}
+        onEndAttempt={confirmEndAttempt}
       />
       <ViolationsLimitDialog open={violationsLimitOpen} examTitle={session.exam.title} />
       <ExamSubmitConfirmModal

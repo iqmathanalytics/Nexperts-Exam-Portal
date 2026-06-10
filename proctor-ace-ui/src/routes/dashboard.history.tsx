@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { apiAuth } from "@/lib/api-auth";
 import { formatAttemptDate, formatAttemptTime } from "@/lib/format-datetime";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { useCandidateDataLoad } from "@/contexts/page-load-context";
 
 type AttemptRow = {
   id: string;
@@ -22,7 +22,7 @@ export const Route = createFileRoute("/dashboard/history")({
 });
 
 function HistoryPage() {
-  const { data: attempts = [] } = usePageDataLoad(
+  const { data: attempts = [] } = useCandidateDataLoad(
     "history",
     async () => {
       const d = await apiAuth<{ attempts: AttemptRow[] }>("/api/candidate/attempts");

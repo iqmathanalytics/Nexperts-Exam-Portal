@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { apiAuth } from "@/lib/api-auth";
 import { formatAttemptDateTime } from "@/lib/format-datetime";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { useCandidateDataLoad } from "@/contexts/page-load-context";
 
 type DashboardData = {
   user: { name: string } | null;
@@ -20,7 +20,7 @@ export const Route = createFileRoute("/dashboard/")({
 });
 
 function DashboardHome() {
-  const { data } = usePageDataLoad(
+  const { data } = useCandidateDataLoad(
     "dashboard-home",
     () => apiAuth<DashboardData>("/api/candidate/dashboard"),
     [],

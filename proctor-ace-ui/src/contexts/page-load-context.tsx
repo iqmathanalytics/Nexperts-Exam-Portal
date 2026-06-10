@@ -80,4 +80,4 @@ export function usePageLoading(id: string, loading: boolean) {
   }, [id, ctx]);
 }
 
-export { usePageDataLoad, useInvalidateSession } from "@/hooks/use-session-query";
+export { usePageDataLoad, useCandidateDataLoad, useInvalidateSession } from "@/hooks/use-session-query";

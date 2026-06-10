@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { InvoicePreview, type InvoicePreviewData } from "@/components/invoice-preview";
 import { apiAuth, downloadAuthPdf } from "@/lib/api-auth";
 import { ApiError } from "@/lib/api-client";
-import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
+import { useCandidateDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 
 export const Route = createFileRoute("/dashboard/payments")({
   component: Payments,
@@ -37,7 +37,7 @@ function Payments() {
   const [resuming, setResuming] = useState<string | null>(null);
   const [cancelling, setCancelling] = useState<string | null>(null);
   const [cancelTarget, setCancelTarget] = useState<PaymentRow | null>(null);
-  const { data: payments = [] } = usePageDataLoad(
+  const { data: payments = [] } = useCandidateDataLoad(
     "payments",
     async () => {
       const d = await apiAuth<{ payments: PaymentRow[] }>("/api/payments/my");

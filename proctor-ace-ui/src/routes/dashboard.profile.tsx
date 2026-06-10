@@ -10,7 +10,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Switch } from "@/components/ui/switch";
 import { apiAuth } from "@/lib/api-auth";
 import { ApiError } from "@/lib/api-client";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { useCandidateDataLoad } from "@/contexts/page-load-context";
 
 type ProfileForm = {
   name: string;
@@ -25,7 +25,7 @@ export const Route = createFileRoute("/dashboard/profile")({
 });
 
 function Profile() {
-  const { data: profile } = usePageDataLoad(
+  const { data: profile } = useCandidateDataLoad(
     "profile",
     async () => {
       const d = await apiAuth<{ user: { fullName: string; email: string; phone: string | null; icPassport: string | null; createdAt: string } }>(

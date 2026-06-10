@@ -6,7 +6,7 @@ import { PageHeader, EmptyState } from "@/components/dashboard-bits";
 import { Button } from "@/components/ui/button";
 import { apiAuth, downloadAuthPdf } from "@/lib/api-auth";
 import { formatCertificateDate } from "@/lib/certificate-utils";
-import { usePageDataLoad } from "@/contexts/page-load-context";
+import { useCandidateDataLoad } from "@/contexts/page-load-context";
 
 export const Route = createFileRoute("/dashboard/certificates")({
   component: Certificates,
@@ -24,7 +24,7 @@ type Cert = {
 };
 
 function Certificates() {
-  const { data: certs = [] } = usePageDataLoad(
+  const { data: certs = [] } = useCandidateDataLoad(
     "certificates",
     async () => {
       const d = await apiAuth<{ certificates: Cert[] }>("/api/candidate/certificates");

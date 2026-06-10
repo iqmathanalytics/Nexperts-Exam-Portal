@@ -2,6 +2,25 @@ import { QueryClient } from "@tanstack/react-query";
 
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes
 
+/** Candidate views must stay fresh — never persist or hydrate from localStorage. */
+export const CANDIDATE_SESSION_IDS = new Set([
+  "my-exams",
+  "dashboard-home",
+  "dashboard-history",
+  "available-exams",
+  "dashboard-payments",
+  "dashboard-certificates",
+  "dashboard-profile",
+]);
+
+function isCandidateSessionKey(queryKey: readonly unknown[]): boolean {
+  return (
+    queryKey[0] === "session" &&
+    typeof queryKey[1] === "string" &&
+    CANDIDATE_SESSION_IDS.has(queryKey[1])
+  );
+}
+
 function getCacheKey(): string | null {
   try {
     const raw = localStorage.getItem("nx-auth");
@@ -29,6 +48,7 @@ function hydrateCache(client: QueryClient) {
       return;
     }
     for (const { queryKey, data } of entries) {
+      if (isCandidateSessionKey(queryKey as readonly unknown[])) continue;
       client.setQueryData(queryKey as readonly unknown[], data);
     }
   } catch {
@@ -44,7 +64,12 @@ function persistCache(client: QueryClient) {
     const entries = client
       .getQueryCache()
       .getAll()
-      .filter((q) => q.state.status === "success" && q.state.data !== undefined)
+      .filter(
+        (q) =>
+          q.state.status === "success" &&
+          q.state.data !== undefined &&
+          !isCandidateSessionKey(q.queryKey),
+      )
       .map((q) => ({ queryKey: q.queryKey, data: q.state.data }));
     localStorage.setItem(key, JSON.stringify({ entries, savedAt: Date.now() }));
   } catch {}
@@ -59,6 +84,26 @@ export function clearPersistedCache() {
       }
     }
   } catch {}
+}
+
+/** Drop stale candidate entries from persisted cache (e.g. after admin updates). */
+export function purgePersistedCandidateCaches() {
+  if (typeof localStorage === "undefined") return;
+  try {
+    const key = getCacheKey();
+    if (!key) return;
+    const raw = localStorage.getItem(key);
+    if (!raw) return;
+    const { entries, savedAt } = JSON.parse(raw) as {
+      entries: { queryKey: unknown[]; data: unknown }[];
+      savedAt: number;
+    };
+    const filtered = entries.filter((e) => !isCandidateSessionKey(e.queryKey as readonly unknown[]));
+    if (filtered.length === entries.length) return;
+    localStorage.setItem(key, JSON.stringify({ entries: filtered, savedAt }));
+  } catch {
+    /* ignore */
+  }
 }
 
 /** Session-scoped cache: data survives route changes and page reloads (10-min TTL). */

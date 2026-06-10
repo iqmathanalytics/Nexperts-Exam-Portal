@@ -133,6 +133,89 @@ router.get("/charts", async (_req, res) => {
   res.json({ revenueChartData, examActivityData });
 });
 
+const adminNotificationsLastRead = new Map<string, number>();
+
+router.get("/notifications", async (req, res) => {
+  const adminId = (req as AuthedRequest).user!.sub;
+  const lastRead = adminNotificationsLastRead.get(adminId) ?? 0;
+
+  const [pendingPayments, recentViolations, flaggedAttempts, recentUsers] = await Promise.all([
+    prisma.payment.findMany({
+      where: { status: PaymentStatus.PENDING },
+      include: { user: true, exam: true },
+      orderBy: { createdAt: "desc" },
+      take: 10,
+    }),
+    prisma.proctoringViolation.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 10,
+      include: { user: true, attempt: { include: { exam: true } } },
+    }),
+    prisma.examAttempt.findMany({
+      where: { result: "IN_PROGRESS", warnings: { gte: 3 } },
+      include: { user: true, exam: true },
+      orderBy: { startedAt: "desc" },
+      take: 10,
+    }),
+    prisma.user.findMany({
+      where: {
+        role: Role.CANDIDATE,
+        createdAt: { gte: new Date(Date.now() - 7 * 86400000) },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+    }),
+  ]);
+
+  const notifications = [
+    ...pendingPayments.map((p) => ({
+      id: `pending-${p.id}`,
+      type: "info",
+      title: "Pending payment",
+      message: `${p.user.fullName} — ${p.exam.title} (MYR ${Number(p.amount)})`,
+      createdAt: p.createdAt.toISOString(),
+      read: p.createdAt.getTime() <= lastRead,
+    })),
+    ...recentViolations.map((v) => ({
+      id: `violation-${v.id}`,
+      type: "alert",
+      title: "Proctoring violation",
+      message: `${v.user.fullName} — ${v.type} during ${v.attempt.exam.title}`,
+      createdAt: v.createdAt.toISOString(),
+      read: v.createdAt.getTime() <= lastRead,
+    })),
+    ...flaggedAttempts.map((a) => ({
+      id: `flagged-${a.id}`,
+      type: "alert",
+      title: "Flagged exam session",
+      message: `${a.user.fullName} has ${a.warnings} warnings on ${a.exam.title}`,
+      createdAt: a.startedAt.toISOString(),
+      read: a.startedAt.getTime() <= lastRead,
+    })),
+    ...recentUsers.map((u) => ({
+      id: `user-${u.id}`,
+      type: "info",
+      title: "New candidate registered",
+      message: `${u.fullName} (${u.email}) joined the portal`,
+      createdAt: u.createdAt.toISOString(),
+      read: u.createdAt.getTime() <= lastRead,
+    })),
+  ]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .slice(0, 25);
+
+  res.json({
+    notifications,
+    unreadCount: notifications.filter((n) => !n.read).length,
+  });
+});
+
+router.post("/notifications/mark-read", async (req, res) => {
+  const adminId = (req as AuthedRequest).user!.sub;
+  adminNotificationsLastRead.set(adminId, Date.now());
+  res.json({ ok: true });
+});
+
 // ——— Exams ———
 router.get("/exams", async (_req, res) => {
   const exams = await prisma.exam.findMany({

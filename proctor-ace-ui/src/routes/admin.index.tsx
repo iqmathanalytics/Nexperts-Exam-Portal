@@ -8,17 +8,18 @@ import { apiAuth } from "@/lib/api-auth";
 import { usePageDataLoad } from "@/contexts/page-load-context";
 import { useAdminSearch } from "@/contexts/admin-search-context";
 
-type AdminHomeData = {
-  stats: {
-    totalUsers: number;
-    activeExams: number;
-    revenue: number;
-    passed: number;
-    failed: number;
-    ongoing: number;
-    violations: number;
-    voucherUsage: number;
-  };
+type AdminStats = {
+  totalUsers: number;
+  activeExams: number;
+  revenue: number;
+  passed: number;
+  failed: number;
+  ongoing: number;
+  violations: number;
+  voucherUsage: number;
+};
+
+type AdminSecondary = {
   revenueChartData: { month: string; revenue: number }[];
   examActivityData: { day: string; attempts: number }[];
   payments: { user: string; exam: string; amount: number; status: string; date: string }[];
@@ -31,17 +32,22 @@ export const Route = createFileRoute("/admin/")({
 
 function AdminDashboard() {
   const { query: search } = useAdminSearch();
-  const { data } = usePageDataLoad(
-    "admin-home",
-    async (): Promise<AdminHomeData> => {
-      const [statsRes, chartsRes, paymentsRes, resultsRes] = await Promise.all([
-        apiAuth<AdminHomeData["stats"]>("/api/admin/stats"),
-        apiAuth<{ revenueChartData: AdminHomeData["revenueChartData"]; examActivityData: AdminHomeData["examActivityData"] }>("/api/admin/charts"),
-        apiAuth<{ payments: AdminHomeData["payments"] }>("/api/admin/payments"),
+
+  const { data: statsData, isPending: statsPending } = usePageDataLoad(
+    "admin-home-stats",
+    () => apiAuth<AdminStats>("/api/admin/stats"),
+    [],
+  );
+
+  const { data: secondaryData, isPending: secondaryPending } = usePageDataLoad(
+    "admin-home-secondary",
+    async (): Promise<AdminSecondary> => {
+      const [chartsRes, paymentsRes, resultsRes] = await Promise.all([
+        apiAuth<{ revenueChartData: AdminSecondary["revenueChartData"]; examActivityData: AdminSecondary["examActivityData"] }>("/api/admin/charts"),
+        apiAuth<{ payments: AdminSecondary["payments"] }>("/api/admin/payments"),
         apiAuth<{ results: { candidate: string; exam: string; score: number; result: string }[] }>("/api/admin/results"),
       ]);
       return {
-        stats: statsRes,
         revenueChartData: chartsRes.revenueChartData,
         examActivityData: chartsRes.examActivityData,
         payments: paymentsRes.payments.slice(0, 5),
@@ -51,7 +57,9 @@ function AdminDashboard() {
     [],
   );
 
-  const stats = data?.stats ?? {
+  const isPending = statsPending;
+
+  const stats: AdminStats = statsData ?? {
     totalUsers: 0,
     activeExams: 0,
     revenue: 0,
@@ -61,10 +69,10 @@ function AdminDashboard() {
     violations: 0,
     voucherUsage: 0,
   };
-  const revenueChartData = data?.revenueChartData ?? [];
-  const examActivityData = data?.examActivityData ?? [];
-  const payments = data?.payments ?? [];
-  const results = data?.results ?? [];
+  const revenueChartData = secondaryData?.revenueChartData ?? [];
+  const examActivityData = secondaryData?.examActivityData ?? [];
+  const payments = secondaryData?.payments ?? [];
+  const results = secondaryData?.results ?? [];
 
   const q = search.toLowerCase().trim();
   const filteredResults = q
@@ -89,14 +97,14 @@ function AdminDashboard() {
       <PageHeader title="Admin dashboard" sub="Live data from TiDB." />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total users" value={stats.totalUsers.toLocaleString()} icon={Users} />
-        <StatCard label="Active exams" value={stats.activeExams} icon={BookOpen} accent="blue" />
-        <StatCard label="Revenue (MYR)" value={stats.revenue.toLocaleString()} icon={DollarSign} accent="gold" />
-        <StatCard label="Passed" value={stats.passed} icon={CheckCircle2} accent="emerald" />
-        <StatCard label="Failed" value={stats.failed} icon={XCircle} accent="rose" />
-        <StatCard label="Ongoing" value={stats.ongoing} icon={Monitor} accent="blue" />
-        <StatCard label="Violations" value={stats.violations} icon={AlertTriangle} accent="rose" />
-        <StatCard label="Voucher usage" value={`${stats.voucherUsage}%`} icon={Ticket} accent="gold" />
+        <StatCard label="Total users" value={stats.totalUsers.toLocaleString()} icon={Users} loading={isPending} />
+        <StatCard label="Active exams" value={stats.activeExams} icon={BookOpen} accent="blue" loading={isPending} />
+        <StatCard label="Revenue (MYR)" value={stats.revenue.toLocaleString()} icon={DollarSign} accent="gold" loading={isPending} />
+        <StatCard label="Passed" value={stats.passed} icon={CheckCircle2} accent="emerald" loading={isPending} />
+        <StatCard label="Failed" value={stats.failed} icon={XCircle} accent="rose" loading={isPending} />
+        <StatCard label="Ongoing" value={stats.ongoing} icon={Monitor} accent="blue" loading={isPending} />
+        <StatCard label="Violations" value={stats.violations} icon={AlertTriangle} accent="rose" loading={isPending} />
+        <StatCard label="Voucher usage" value={`${stats.voucherUsage}%`} icon={Ticket} accent="gold" loading={isPending} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -139,10 +147,18 @@ function AdminDashboard() {
           <h3 className="font-display font-semibold">Recent results</h3>
           <table className="mt-4 w-full text-sm">
             <tbody>
-              {filteredResults.length === 0 && q && (
+              {secondaryPending && Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i} className="border-b">
+                  <td className="py-2"><div className="h-4 w-28 animate-pulse rounded bg-muted" /></td>
+                  <td><div className="h-4 w-32 animate-pulse rounded bg-muted" /></td>
+                  <td><div className="h-4 w-10 animate-pulse rounded bg-muted" /></td>
+                  <td><div className="h-4 w-12 animate-pulse rounded bg-muted" /></td>
+                </tr>
+              ))}
+              {!secondaryPending && filteredResults.length === 0 && q && (
                 <tr><td colSpan={4} className="py-4 text-center text-muted-foreground">No results match your search</td></tr>
               )}
-              {filteredResults.map((r, i) => (
+              {!secondaryPending && filteredResults.map((r, i) => (
                 <tr key={i} className="border-b">
                   <td className="py-2">{r.candidate}</td>
                   <td>{r.exam}</td>
@@ -158,10 +174,17 @@ function AdminDashboard() {
           <h3 className="font-display font-semibold">Recent payments</h3>
           <table className="mt-4 w-full text-sm">
             <tbody>
-              {filteredPayments.length === 0 && q && (
+              {secondaryPending && Array.from({ length: 4 }).map((_, i) => (
+                <tr key={i} className="border-b">
+                  <td className="py-2"><div className="h-4 w-28 animate-pulse rounded bg-muted" /></td>
+                  <td><div className="h-4 w-16 animate-pulse rounded bg-muted" /></td>
+                  <td><div className="h-4 w-14 animate-pulse rounded bg-muted" /></td>
+                </tr>
+              ))}
+              {!secondaryPending && filteredPayments.length === 0 && q && (
                 <tr><td colSpan={3} className="py-4 text-center text-muted-foreground">No payments match your search</td></tr>
               )}
-              {filteredPayments.map((p, i) => (
+              {!secondaryPending && filteredPayments.map((p, i) => (
                 <tr key={i} className="border-b">
                   <td className="py-2">{p.user}</td>
                   <td>MYR {p.amount}</td>

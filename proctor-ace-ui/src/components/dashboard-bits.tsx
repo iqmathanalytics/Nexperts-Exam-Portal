@@ -1,13 +1,14 @@
 import { cn } from "@/lib/utils";
 
 export function StatCard({
-  label, value, hint, icon: Icon, accent,
+  label, value, hint, icon: Icon, accent, loading,
 }: {
   label: string;
   value: string | number;
   hint?: string;
   icon: React.ComponentType<{ className?: string }>;
   accent?: "emerald" | "gold" | "blue" | "rose";
+  loading?: boolean;
 }) {
   const map = {
     emerald: "bg-accent/10 text-accent",
@@ -20,8 +21,12 @@ export function StatCard({
       <div className="flex items-start justify-between">
         <div>
           <div className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</div>
-          <div className="mt-2 font-display text-3xl font-bold">{value}</div>
-          {hint && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
+          {loading ? (
+            <div className="mt-2 h-9 w-20 animate-pulse rounded-lg bg-muted" />
+          ) : (
+            <div className="mt-2 font-display text-3xl font-bold">{value}</div>
+          )}
+          {hint && !loading && <div className="mt-1 text-xs text-muted-foreground">{hint}</div>}
         </div>
         <div className={cn("flex h-10 w-10 items-center justify-center rounded-lg", map[accent ?? "emerald"])}>
           <Icon className="h-5 w-5" />

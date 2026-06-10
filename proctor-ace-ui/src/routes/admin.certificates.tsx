@@ -33,7 +33,7 @@ function AdminCertificates() {
   const [filterExam, setFilterExam] = useState("all");
   const { query: searchStudent } = useAdminSearch();
   const invalidateSession = useInvalidateSession();
-  const { data: certs = [] } = usePageDataLoad(
+  const { data: certs = [], isPending } = usePageDataLoad(
     "admin-certificates",
     async () => {
       const d = await apiAuth<{ certificates: Cert[] }>("/api/admin/certificates");
@@ -109,7 +109,17 @@ function AdminCertificates() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((c) => (
+            {isPending && Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-b">
+                <td className="p-4"><div className="h-4 w-28 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-4 w-36 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-4 w-32 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-4 w-10 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-4 w-20 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-8 w-16 animate-pulse rounded bg-muted ml-auto" /></td>
+              </tr>
+            ))}
+            {!isPending && filtered.map((c) => (
               <tr key={c.id} className="border-b hover:bg-muted/20">
                 <td className="p-4 font-medium">{c.candidate}</td>
                 <td className="p-4">{c.exam}</td>

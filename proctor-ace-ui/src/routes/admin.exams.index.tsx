@@ -20,7 +20,7 @@ function AdminExams() {
   const navigate = useNavigate();
   const { query: search, setQuery: setSearch } = useAdminSearch();
   const invalidateSession = useInvalidateSession();
-  const { data: exams = [] } = usePageDataLoad(
+  const { data: exams = [], isPending } = usePageDataLoad(
     "admin-exams",
     async () => {
       const d = await apiAuth<{ exams: ExamRow[] }>("/api/admin/exams");
@@ -90,7 +90,17 @@ function AdminExams() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((e) => (
+            {isPending && Array.from({ length: 5 }).map((_, i) => (
+              <tr key={i} className="border-b border-border/60">
+                <td className="p-4"><div className="h-4 w-40 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-4 w-24 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-4 w-16 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-4 w-16 animate-pulse rounded bg-muted" /></td>
+                <td className="p-4"><div className="h-5 w-16 animate-pulse rounded-full bg-muted" /></td>
+                <td className="p-4"><div className="h-4 w-24 animate-pulse rounded bg-muted" /></td>
+              </tr>
+            ))}
+            {!isPending && filtered.map((e) => (
               <tr key={e.id} className="border-b border-border/60 hover:bg-muted/20">
                 <td className="p-4 font-medium">{e.title}</td>
                 <td className="p-4">{e.category}</td>

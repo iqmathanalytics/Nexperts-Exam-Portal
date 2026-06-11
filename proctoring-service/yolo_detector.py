@@ -252,13 +252,13 @@ def verify_identity(selfie_b64: str, id_b64: str) -> dict:
       1. Extract face chip from the selfie via Haar cascade.
       2. Locate the ID card region using YOLO (heavy mode) or OpenCV contours.
       3. Extract face chip from the card region.
-      4. Compare chips using histogram + NCC; threshold at 0.60.
+      4. Compare chips using histogram + NCC; threshold at 0.40.
 
     Returns a dict with keys:
       id_detected, selfie_face_detected, id_face_detected,
       match_score, verified, reason
     """
-    MATCH_THRESHOLD = 0.60
+    MATCH_THRESHOLD = 0.40
 
     selfie_img = _decode_frame(selfie_b64)
     id_img = _decode_frame(id_b64)

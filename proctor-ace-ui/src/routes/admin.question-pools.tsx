@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Plus, Pencil, Trash2, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, Upload, Download } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin-bits";
 import { Button } from "@/components/ui/button";
@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { parseQuestionCsv } from "@/components/question-form-fields";
 import { QuestionCsvBulkInput } from "@/components/question-csv-bulk-input";
-import { apiAuth } from "@/lib/api-auth";
+import { apiAuth, downloadAuthPdf } from "@/lib/api-auth";
 import { buildAdminQuestionsQuery } from "@/lib/admin-questions-api";
 import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 import { ApiError } from "@/lib/api-client";
@@ -210,6 +210,16 @@ function AdminQuestionPools() {
     }
   };
 
+  const downloadPool = async (pool: Pool) => {
+    try {
+      const safeName = pool.name.replace(/[^\w\- ]+/g, "").trim() || "question-pool";
+      await downloadAuthPdf(`/api/admin/question-pools/${pool.id}/download`, `${safeName}.pdf`);
+      toast.success("Question pool PDF downloaded");
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Could not download question pool");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -250,6 +260,9 @@ function AdminQuestionPools() {
                 <td>{p.active ? "Active" : "Inactive"}</td>
                 <td className="p-4">
                   <div className="flex justify-end gap-1">
+                    <Button size="icon" variant="ghost" title="Download PDF" onClick={() => void downloadPool(p)}>
+                      <Download className="h-4 w-4" />
+                    </Button>
                     <Button size="icon" variant="ghost" onClick={() => openEdit(p.id)}>
                       <Pencil className="h-4 w-4" />
                     </Button>

@@ -16,6 +16,8 @@ import { generateQuestionsWithGroq } from "../services/groq.js";
 import { generateVoucherCode } from "../lib/voucher-code.js";
 import { extractTextFromPdfBuffer } from "../services/pdf-text.js";
 import { attendByFromPurchase } from "../services/exam-scheduling.js";
+import { sendPdfJson } from "../services/pdf-buffer.js";
+import { generateQuestionPoolPdf } from "../services/pdf-question-pool.js";
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -908,6 +910,47 @@ router.put("/question-pools/:id", async (req, res) => {
 router.delete("/question-pools/:id", async (req, res) => {
   await prisma.questionPool.delete({ where: { id: String(req.params.id) } });
   res.json({ ok: true });
+});
+
+router.post("/question-pools/:id/download", async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const pool = await prisma.questionPool.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: { question: true },
+          orderBy: { createdAt: "asc" },
+        },
+      },
+    });
+    if (!pool) return res.status(404).json({ error: "Question pool not found" });
+    if (pool.items.length === 0) {
+      return res.status(400).json({ error: "This pool has no questions to download" });
+    }
+
+    const pdf = await generateQuestionPoolPdf({
+      poolName: pool.name,
+      poolDescription: pool.description ?? "",
+      questions: pool.items.map((it) => {
+        const q = formatQuestion(it.question);
+        return {
+          title: q.title,
+          topic: q.topic,
+          type: q.type,
+          options: q.options,
+          correctAnswer: q.correctAnswer,
+          explanation: q.explanation,
+        };
+      }),
+    });
+
+    const safeName = pool.name.replace(/[^\w\- ]+/g, "").trim() || "question-pool";
+    sendPdfJson(res, pdf, `${safeName}.pdf`);
+  } catch (err) {
+    console.error("POST /question-pools/:id/download failed:", err);
+    res.status(500).json({ error: "Could not generate question pool PDF" });
+  }
 });
 
 // ——— AI (Groq) ———

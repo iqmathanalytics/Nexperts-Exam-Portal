@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CheckCircle2, ShieldCheck } from "lucide-react";
 import { BrandLogo } from "@/components/brand-logo";
+import { BRAND } from "@/lib/branding";
 import { CertificatePreview } from "@/components/certificate-preview";
 
 export const Route = createFileRoute("/certificate/$credentialId")({
@@ -93,7 +94,7 @@ function PublicCertificatePage() {
         </div>
 
         <p className="mt-6 text-center text-xs text-muted-foreground">
-          This page verifies completion of a proctored Nexperts Academy certification exam
+          This page verifies completion of a proctored {BRAND.name} certification exam
           {cert.category ? ` · ${cert.category}` : ""}.
         </p>
       </div>

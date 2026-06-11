@@ -1,4 +1,4 @@
-"""NExperts proctoring microservice — frame analysis from nexpert-quiz-backend."""
+"""Ventrix Global proctoring microservice — frame analysis."""
 import os
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from yolo_detector import analyze_frame, verify_identity
 
-app = FastAPI(title="NExperts Proctoring Service")
+app = FastAPI(title="Ventrix Global Proctoring Service")
 
 app.add_middleware(
     CORSMiddleware,

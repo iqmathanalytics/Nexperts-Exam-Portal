@@ -45,7 +45,7 @@ type Props = {
 };
 
 export function InvoicePreview({ data, className = "" }: Props) {
-  const brand = "#8B1538";
+  const brand = "#0f172a";
   const muted = "#666666";
 
   return (

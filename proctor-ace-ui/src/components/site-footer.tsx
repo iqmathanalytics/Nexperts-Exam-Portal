@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { ShieldCheck, Github, Twitter, Linkedin } from "lucide-react";
+import { Github, Twitter, Linkedin } from "lucide-react";
+import { BrandLogo } from "@/components/brand-logo";
 import { BRAND } from "@/lib/branding";
 
 export function SiteFooter() {
@@ -8,14 +9,9 @@ export function SiteFooter() {
       <div className="container mx-auto px-4 py-16 lg:px-8">
         <div className="grid gap-10 md:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-4">
-            <Link to="/" className="flex items-center gap-2">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-emerald">
-                <ShieldCheck className="h-5 w-5 text-white" />
-              </div>
-              <span className="font-display text-lg font-bold">{BRAND.shortName}<span className="text-accent">.</span></span>
-            </Link>
+            <BrandLogo to="/" className="text-sidebar-foreground" />
             <p className="max-w-xs text-sm text-sidebar-foreground/70">
-              The enterprise-grade AI-proctored certification platform trusted by thousands of professionals worldwide.
+              {BRAND.tagline}. Trusted by organisations worldwide for secure certification and exam delivery.
             </p>
             <div className="flex gap-3 pt-2">
               <a className="flex h-9 w-9 items-center justify-center rounded-md bg-sidebar-accent/40 transition hover:bg-sidebar-accent" href="#"><Twitter className="h-4 w-4" /></a>

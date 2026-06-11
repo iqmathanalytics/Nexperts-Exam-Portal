@@ -8,6 +8,7 @@ import { BrandLogo } from "@/components/brand-logo";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth";
+import { pageTitle } from "@/lib/branding";
 import { invalidateExamCaches } from "@/lib/invalidate-exam-caches";
 
 export const Route = createFileRoute("/exam-complete")({
@@ -21,7 +22,7 @@ export const Route = createFileRoute("/exam-complete")({
     credentialId: String(s.credentialId ?? ""),
   }),
   component: ExamCompletePage,
-  head: () => ({ meta: [{ title: "Exam complete — Certification Portal" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Exam complete") }] }),
 });
 
 function ExamCompletePage() {

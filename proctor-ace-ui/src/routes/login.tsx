@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { api, ApiError } from "@/lib/api-client";
 import { getAuth, setAuth, mapApiRole } from "@/lib/auth";
+import { pageTitle } from "@/lib/branding";
 
 export const Route = createFileRoute("/login")({
   beforeLoad: () => {
@@ -17,7 +18,7 @@ export const Route = createFileRoute("/login")({
     if (auth?.role === "admin") throw redirect({ to: "/admin" });
   },
   component: LoginPage,
-  head: () => ({ meta: [{ title: "Sign in — Certification Portal" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Sign in") }] }),
 });
 
 function LoginPage() {

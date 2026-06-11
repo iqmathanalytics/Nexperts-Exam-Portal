@@ -10,6 +10,7 @@ import { PasswordInput } from "@/components/password-input";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { pageTitle } from "@/lib/branding";
 
 export const Route = createFileRoute("/admin-login")({
   beforeLoad: () => {
@@ -18,7 +19,7 @@ export const Route = createFileRoute("/admin-login")({
     if (auth?.role === "candidate") throw redirect({ to: "/dashboard" });
   },
   component: AdminLogin,
-  head: () => ({ meta: [{ title: "Admin Portal — Certification Portal" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Admin sign in") }] }),
 });
 
 function AdminLogin() {
@@ -89,7 +90,7 @@ function AdminLogin() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="admin@nexperts.io"
+                placeholder="admin@ventrix.global"
                 className="border-sidebar-border bg-sidebar/50 text-sidebar-foreground placeholder:text-sidebar-foreground/40"
               />
             </div>

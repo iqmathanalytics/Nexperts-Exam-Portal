@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { apiAuth } from "@/lib/api-auth";
+import { BRAND } from "@/lib/branding";
 import { ApiError } from "@/lib/api-client";
 
 type Cert = {
@@ -72,7 +73,7 @@ function AdminCertificates() {
   };
 
   const download = (c: Cert) => {
-    const text = `NExperts Certified\n${c.candidate}\n${c.exam}\n${c.credentialId}\nScore: ${c.score}%\nIssued: ${c.issuedOn}`;
+    const text = `${BRAND.name} Certified\n${c.candidate}\n${c.exam}\n${c.credentialId}\nScore: ${c.score}%\nIssued: ${c.issuedOn}`;
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

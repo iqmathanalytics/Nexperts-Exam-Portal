@@ -29,7 +29,7 @@ services:
       - key: BREVO_SENDER_EMAIL
         sync: false
       - key: BREVO_SENDER_NAME
-        value: Nexperts Academy
+        value: Ventrix Global
       - key: ADMIN_EMAIL
         sync: false
       - key: ADMIN_PASSWORD
@@ -49,7 +49,7 @@ services:
       - key: PROCTORING_SERVICE_URL
         sync: false
       - key: INVOICE_COMPANY_NAME
-        value: Nexperts Academy
+        value: Ventrix Global
       - key: INVOICE_COMPANY_LEGAL_NAME
         sync: false
       - key: INVOICE_COMPANY_ADDRESS

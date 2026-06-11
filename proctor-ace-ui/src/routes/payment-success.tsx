@@ -7,6 +7,7 @@ import { api, apiBase } from "@/lib/api-client";
 import { getToken, isClientAuthenticated } from "@/lib/auth";
 import { isRealStripeSessionId } from "@/lib/stripe-session";
 import { useInvalidateSession } from "@/contexts/page-load-context";
+import { pageTitle } from "@/lib/branding";
 
 type ConfirmResult = {
   paid?: boolean;
@@ -24,7 +25,7 @@ export const Route = createFileRoute("/payment-success")({
     invoice: (s.invoice as string) ?? "",
   }),
   component: PaymentSuccess,
-  head: () => ({ meta: [{ title: "Payment successful — Certification Portal" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Payment successful") }] }),
 });
 
 function sleep(ms: number) {

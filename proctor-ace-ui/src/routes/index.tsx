@@ -53,7 +53,7 @@ function Hero({ auth }: { auth: AuthSession | null }) {
         <div className="grid items-center gap-12 lg:grid-cols-2">
           <div className="animate-fade-up">
             <Badge variant="outline" className="border-white/20 bg-white/5 text-white backdrop-blur">
-              <Sparkles className="mr-1.5 h-3 w-3 text-gold" /> AI-Proctored · Enterprise grade
+              <Sparkles className="mr-1.5 h-3 w-3 text-gold" /> Ventrix Global · Enterprise grade
             </Badge>
             <h1 className="mt-6 font-display text-5xl font-bold leading-[1.05] tracking-tight text-balance md:text-6xl lg:text-7xl">
               Certify your<br />

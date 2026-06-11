@@ -187,7 +187,7 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
         <span class="footer-label">Issued date:</span>
         <span class="footer-value">${escapeHtml(issuedLong)}</span>
       </div>
-      <p class="verify">Verify at nexperts.io/certificate/${escapeHtml(input.credentialId)} · ${escapeHtml(issuedShort)}</p>
+      <p class="verify">Verify at www.ventrix.global/certificate/${escapeHtml(input.credentialId)} · ${escapeHtml(issuedShort)}</p>
     </div>
   </div>
 </body>

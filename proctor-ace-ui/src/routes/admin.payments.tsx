@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { apiAuth } from "@/lib/api-auth";
+import { BRAND } from "@/lib/branding";
 import { usePageDataLoad, useInvalidateSession } from "@/contexts/page-load-context";
 import { useAdminSearch } from "@/contexts/admin-search-context";
 import { ApiError } from "@/lib/api-client";
@@ -148,7 +149,7 @@ function AdminPayments() {
           <DialogHeader><DialogTitle>Invoice preview</DialogTitle></DialogHeader>
           {invoice && (
             <div className="space-y-2 rounded-lg bg-gradient-hero p-6 text-white text-sm">
-              <div className="font-display text-lg font-bold">NExperts Academy</div>
+              <div className="font-display text-lg font-bold">{BRAND.name}</div>
               <div className="opacity-80">{invoice.invoiceId}</div>
               <hr className="border-white/20" />
               <p>{invoice.user} — {invoice.exam}</p>

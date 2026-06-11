@@ -5,12 +5,13 @@ import { Loader2, MailCheck } from "lucide-react";
 import { AuthLayout } from "@/components/auth-layout";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api-client";
+import { BRAND, pageTitle } from "@/lib/branding";
 import { setAuth, mapApiRole } from "@/lib/auth";
 
 export const Route = createFileRoute("/verify-otp")({
   component: VerifyOTP,
   validateSearch: (s: Record<string, unknown>) => ({ email: (s.email as string) ?? "your email" }),
-  head: () => ({ meta: [{ title: "Verify OTP — Certification Portal" }] }),
+  head: () => ({ meta: [{ title: pageTitle("Verify email") }] }),
 });
 
 function VerifyOTP() {
@@ -58,7 +59,7 @@ function VerifyOTP() {
         userId: res.user.id,
         fullName: res.user.fullName,
       });
-      toast.success("Email verified! Welcome to Certification Portal.");
+      toast.success(`Email verified! Welcome to ${BRAND.name}.`);
       navigate({ to: "/dashboard" });
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : "Invalid OTP");

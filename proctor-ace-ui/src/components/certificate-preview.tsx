@@ -136,7 +136,7 @@ export function CertificatePreview({ data, className = "" }: Props) {
           </span>
         </div>
         <p className="mt-3 text-[#5C5C5C]" style={{ fontSize: "clamp(8px, 0.95vw, 8.5px)" }}>
-          Verify at nexperts.io/certificate/{data.credentialId} · {formatCertificateDateShort(data.issuedOn)}
+          Verify at www.ventrix.global/certificate/{data.credentialId} · {formatCertificateDateShort(data.issuedOn)}
         </p>
       </div>
     </div>

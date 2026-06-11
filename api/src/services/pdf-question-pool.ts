@@ -5,7 +5,7 @@ import PDFDocument from "pdfkit";
 import { pdfToBuffer } from "./pdf-buffer.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOGO_PATH = path.join(__dirname, "../../assets/itexams-logo.png");
+const LOGO_PATH = path.join(__dirname, "../../assets/ventrix-logo.png");
 
 export type QuestionPoolPdfQuestion = {
   title: string;
@@ -40,18 +40,26 @@ function loadLogoBuffer(): Buffer | null {
 
 function drawPoolLogo(doc: PDFKit.PDFDocument, y: number): number {
   const logo = loadLogoBuffer();
-  if (!logo) return y;
-
-  const logoW = 140;
-  const logoH = logoW * (40 / 183);
-  const padX = 28;
-  const padY = 16;
-  const boxW = logoW + padX * 2;
-  const boxH = logoH + padY * 2;
+  const boxW = 148;
+  const boxH = 52;
   const boxX = (doc.page.width - boxW) / 2;
 
-  doc.rect(boxX, y, boxW, boxH).fill("#111827");
-  doc.image(logo, boxX + padX, y + padY, { width: logoW });
+  doc.roundedRect(boxX, y, boxW, boxH, 8).fill("#0f172a");
+
+  if (logo) {
+    const logoW = 88;
+    const logoH = logoW * (40 / 183);
+    doc.image(logo, boxX + 16, y + (boxH - logoH) / 2, { width: logoW });
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(16);
+    doc.text("Ventrix Global", boxX + 16 + logoW + 10, y + 20, { width: boxW - logoW - 42 });
+  } else {
+    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(22);
+    doc.text("VG", boxX, y + 12, { width: boxW, align: "center" });
+    doc.fontSize(9).fillColor("#94a3b8");
+    doc.text("Ventrix Global", boxX, y + 34, { width: boxW, align: "center" });
+  }
+
+  doc.fillColor("#000000");
   return y + boxH + 14;
 }
 

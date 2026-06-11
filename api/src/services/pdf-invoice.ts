@@ -33,7 +33,7 @@ export async function generateInvoicePdf(input: InvoicePdfInput): Promise<Buffer
   const currency = input.currency ?? "MYR";
   const subtotal = input.amount + (input.discountAmount ?? 0);
   const doc = new PDFDocument({ size: "A4", margin: 50 });
-  const brand = "#8B1538";
+  const brand = "#0f172a";
   const muted = "#666666";
   const pageW = doc.page.width - 100;
 

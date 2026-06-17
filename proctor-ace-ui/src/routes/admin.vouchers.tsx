@@ -277,11 +277,10 @@ function AdminVouchers() {
               <Input value={form.label} onChange={(e) => setForm({ ...form, label: e.target.value })} placeholder="March 2026 promo" />
             </div>
             <div className="space-y-1.5">
-              <Label>Quantity (max 500)</Label>
+              <Label>Quantity</Label>
               <Input
                 type="number"
                 min={1}
-                max={500}
                 value={form.quantity}
                 onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
               />

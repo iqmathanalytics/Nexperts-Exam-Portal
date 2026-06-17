@@ -5,7 +5,7 @@ import PDFDocument from "pdfkit";
 import { pdfToBuffer } from "./pdf-buffer.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOGO_PATH = path.join(__dirname, "../../assets/ventrix-logo.png");
+const LOGO_PATH = path.join(__dirname, "../../assets/ventrix_logo.png");
 
 export type QuestionPoolPdfQuestion = {
   title: string;

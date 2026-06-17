@@ -26,6 +26,7 @@ import { Route as DashboardMyExamsRouteImport } from './routes/dashboard.my-exam
 import { Route as DashboardHistoryRouteImport } from './routes/dashboard.history'
 import { Route as DashboardExamsRouteImport } from './routes/dashboard.exams'
 import { Route as DashboardCertificatesRouteImport } from './routes/dashboard.certificates'
+import { Route as CertificateSampleRouteImport } from './routes/certificate.sample'
 import { Route as CertificateCredentialIdRouteImport } from './routes/certificate.$credentialId'
 import { Route as AdminVouchersRouteImport } from './routes/admin.vouchers'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
@@ -131,6 +132,11 @@ const DashboardCertificatesRoute = DashboardCertificatesRouteImport.update({
   id: '/certificates',
   path: '/certificates',
   getParentRoute: () => DashboardRoute,
+} as any)
+const CertificateSampleRoute = CertificateSampleRouteImport.update({
+  id: '/certificate/sample',
+  path: '/certificate/sample',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const CertificateCredentialIdRoute = CertificateCredentialIdRouteImport.update({
   id: '/certificate/$credentialId',
@@ -257,6 +263,7 @@ export interface FileRoutesByFullPath {
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/vouchers': typeof AdminVouchersRoute
   '/certificate/$credentialId': typeof CertificateCredentialIdRoute
+  '/certificate/sample': typeof CertificateSampleRoute
   '/dashboard/certificates': typeof DashboardCertificatesRoute
   '/dashboard/exams': typeof DashboardExamsRoute
   '/dashboard/history': typeof DashboardHistoryRoute
@@ -292,6 +299,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/vouchers': typeof AdminVouchersRoute
   '/certificate/$credentialId': typeof CertificateCredentialIdRoute
+  '/certificate/sample': typeof CertificateSampleRoute
   '/dashboard/certificates': typeof DashboardCertificatesRoute
   '/dashboard/exams': typeof DashboardExamsRoute
   '/dashboard/history': typeof DashboardHistoryRoute
@@ -332,6 +340,7 @@ export interface FileRoutesById {
   '/admin/users': typeof AdminUsersRouteWithChildren
   '/admin/vouchers': typeof AdminVouchersRoute
   '/certificate/$credentialId': typeof CertificateCredentialIdRoute
+  '/certificate/sample': typeof CertificateSampleRoute
   '/dashboard/certificates': typeof DashboardCertificatesRoute
   '/dashboard/exams': typeof DashboardExamsRoute
   '/dashboard/history': typeof DashboardHistoryRoute
@@ -373,6 +382,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vouchers'
     | '/certificate/$credentialId'
+    | '/certificate/sample'
     | '/dashboard/certificates'
     | '/dashboard/exams'
     | '/dashboard/history'
@@ -408,6 +418,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/vouchers'
     | '/certificate/$credentialId'
+    | '/certificate/sample'
     | '/dashboard/certificates'
     | '/dashboard/exams'
     | '/dashboard/history'
@@ -447,6 +458,7 @@ export interface FileRouteTypes {
     | '/admin/users'
     | '/admin/vouchers'
     | '/certificate/$credentialId'
+    | '/certificate/sample'
     | '/dashboard/certificates'
     | '/dashboard/exams'
     | '/dashboard/history'
@@ -475,6 +487,7 @@ export interface RootRouteChildren {
   RegisterRoute: typeof RegisterRoute
   VerifyOtpRoute: typeof VerifyOtpRoute
   CertificateCredentialIdRoute: typeof CertificateCredentialIdRoute
+  CertificateSampleRoute: typeof CertificateSampleRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -597,6 +610,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/dashboard/certificates'
       preLoaderRoute: typeof DashboardCertificatesRouteImport
       parentRoute: typeof DashboardRoute
+    }
+    '/certificate/sample': {
+      id: '/certificate/sample'
+      path: '/certificate/sample'
+      fullPath: '/certificate/sample'
+      preLoaderRoute: typeof CertificateSampleRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/certificate/$credentialId': {
       id: '/certificate/$credentialId'
@@ -844,6 +864,7 @@ const rootRouteChildren: RootRouteChildren = {
   RegisterRoute: RegisterRoute,
   VerifyOtpRoute: VerifyOtpRoute,
   CertificateCredentialIdRoute: CertificateCredentialIdRoute,
+  CertificateSampleRoute: CertificateSampleRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

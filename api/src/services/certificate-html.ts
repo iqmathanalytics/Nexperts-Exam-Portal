@@ -59,7 +59,7 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
   <meta charset="utf-8" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap" rel="stylesheet" />
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 842px; height: 595px; overflow: hidden; }
@@ -86,22 +86,52 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
       color: #141414;
       font-family: 'Montserrat', Helvetica, Arial, sans-serif;
     }
-    .title {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-weight: 700;
-      font-size: 42px;
-      line-height: 1.05;
-      letter-spacing: -0.02em;
-    }
-    .subtitle {
-      margin-top: 8px;
-      font-weight: 500;
-      font-size: 14px;
-      letter-spacing: 0.32em;
+    .cert-heading { margin-bottom: 2px; }
+    .cert-heading-brand {
+      font-family: 'Montserrat', Helvetica, Arial, sans-serif;
+      font-weight: 800;
+      font-size: 30px;
+      letter-spacing: 0.28em;
+      text-indent: 0.28em;
+      line-height: 1.15;
       text-transform: uppercase;
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #2563eb 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+    .cert-heading-rule {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 10px 0 8px;
+      max-width: 280px;
+    }
+    .cert-heading-rule-line {
+      flex: 1;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, #B8860B 20%, #D4AF37 50%, #B8860B 80%, transparent);
+    }
+    .cert-heading-rule-gem {
+      color: #C9A227;
+      font-size: 7px;
+      line-height: 1;
+    }
+    .cert-heading-badge {
+      font-family: 'Montserrat', Helvetica, Arial, sans-serif;
+      font-weight: 600;
+      font-size: 20px;
+      letter-spacing: 0.62em;
+      text-indent: 0.62em;
+      line-height: 1.2;
+      text-transform: uppercase;
+      color: #9A7B1A;
+    }
+    .bg {
+      z-index: 0;
     }
     .presented {
-      margin-top: 28px;
+      margin-top: 22px;
       font-weight: 700;
       font-size: 10px;
       letter-spacing: 0.12em;
@@ -169,8 +199,15 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
   <div class="cert">
     ${bg ? `<img class="bg" src="${bg}" alt="" />` : ""}
     <div class="main">
-      <h1 class="title">CERTIFICATE</h1>
-      <p class="subtitle">OF COMPLETION</p>
+      <div class="cert-heading">
+        <p class="cert-heading-brand">VENTRIX GLOBAL</p>
+        <div class="cert-heading-rule" aria-hidden="true">
+          <span class="cert-heading-rule-line"></span>
+          <span class="cert-heading-rule-gem">◆</span>
+          <span class="cert-heading-rule-line"></span>
+        </div>
+        <p class="cert-heading-badge">CERTIFIED</p>
+      </div>
       <p class="presented">THIS CERTIFICATE IS PRESENTED TO</p>
       <div class="name-wrap">
         <p class="name">${escapeHtml(input.recipientName)}</p>

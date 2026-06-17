@@ -7,6 +7,8 @@ export const BRAND = {
   copyright: "Ventrix Global",
   website: "https://www.ventrix.global",
   supportEmail: "support@ventrix.global",
+  logoPath: "/ventrix_logo.png",
+  certificateHeading: "VENTRIX GLOBAL CERTIFIED",
 } as const;
 
 export function pageTitle(page: string) {

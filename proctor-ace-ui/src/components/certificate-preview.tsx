@@ -3,6 +3,10 @@ import {
   formatCertificateDate,
   formatCertificateDateShort,
 } from "@/lib/certificate-utils";
+import {
+  CertificateHeading,
+  CERTIFICATE_HEADING_STYLES,
+} from "@/components/certificate-heading";
 
 export type CertificatePreviewData = {
   recipientName: string;
@@ -21,7 +25,8 @@ type Props = {
 const COL = { left: "30%", width: "64.5%", footerBottom: "14%" } as const;
 
 const FONT_LINKS = `
-  @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@400;500;600;700&family=Playfair+Display:wght@700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Great+Vibes&family=Montserrat:wght@400;500;600;700;800&family=Playfair+Display:wght@700&display=swap');
+  ${CERTIFICATE_HEADING_STYLES}
 `;
 
 export function CertificatePreview({ data, className = "" }: Props) {
@@ -48,28 +53,13 @@ export function CertificatePreview({ data, className = "" }: Props) {
       />
 
       <div
-        className="absolute text-left text-[#141414]"
+        className="absolute z-10 text-left text-[#141414]"
         style={{ left: COL.left, top: "14.8%", width: COL.width, fontFamily: "'Montserrat', sans-serif" }}
       >
-        <h1
-          className="font-bold leading-[1.05] tracking-tight"
-          style={{
-            fontFamily: "'Playfair Display', Georgia, serif",
-            fontSize: "clamp(30px, 5.2vw, 42px)",
-          }}
-        >
-          CERTIFICATE
-        </h1>
+        <CertificateHeading />
 
         <p
-          className="mt-2 font-medium uppercase tracking-[0.32em]"
-          style={{ fontSize: "clamp(11px, 1.65vw, 14px)" }}
-        >
-          OF COMPLETION
-        </p>
-
-        <p
-          className="mt-7 font-bold uppercase tracking-[0.12em]"
+          className="mt-6 font-bold uppercase tracking-[0.12em]"
           style={{ fontSize: "clamp(9px, 1.15vw, 10px)" }}
         >
           THIS CERTIFICATE IS PRESENTED TO
@@ -105,7 +95,7 @@ export function CertificatePreview({ data, className = "" }: Props) {
       </div>
 
       <div
-        className="absolute text-left"
+        className="absolute z-10 text-left"
         style={{
           left: COL.left,
           bottom: COL.footerBottom,

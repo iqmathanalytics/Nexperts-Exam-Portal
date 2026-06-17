@@ -1117,7 +1117,7 @@ router.post("/voucher-batches", async (req, res) => {
   const body = z
     .object({
       label: z.string().optional(),
-      quantity: z.number().int().min(1).max(500),
+      quantity: z.number().int().min(1),
       discountType: z.string(),
       discountAmount: z.number(),
       expiry: z.string(),

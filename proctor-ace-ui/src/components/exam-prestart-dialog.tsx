@@ -47,7 +47,7 @@ type Props = {
   requiresFullscreen?: boolean;
   starting?: boolean;
   onCancel: () => void;
-  onReady: (identityPhoto?: string) => void;
+  onReady: (identityPhotos?: { selfiePhoto: string; idPhoto: string }) => void;
 };
 
 const ID_STEPS: { key: Step; label: string }[] = [
@@ -241,10 +241,12 @@ export function ExamPrestartDialog({
     onCancel();
   };
 
-  const identityPhotoForAttempt = (): string | undefined => {
-    if (mykadB64) return toDataUrl(mykadB64);
-    if (selfieB64) return toDataUrl(selfieB64);
-    return undefined;
+  const identityPhotosForAttempt = (): { selfiePhoto: string; idPhoto: string } | undefined => {
+    if (!selfieB64 || !mykadB64) return undefined;
+    return {
+      selfiePhoto: toDataUrl(selfieB64),
+      idPhoto: toDataUrl(mykadB64),
+    };
   };
 
   const handleBegin = () => {
@@ -256,7 +258,7 @@ export function ExamPrestartDialog({
     if (requiresFullscreen) {
       requestFullscreenFromGesture();
     }
-    onReady(identityPhotoForAttempt());
+    onReady(identityPhotosForAttempt());
   };
 
   const isIdStep = ["selfie", "mykad", "verifying", "verified", "id-failed"].includes(step);

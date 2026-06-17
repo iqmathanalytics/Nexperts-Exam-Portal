@@ -100,7 +100,10 @@ function MyExams() {
     }
   }, [startExamFromSearch, exams, navigate]);
 
-  const beginExamApi = async (examId: string, identityPhoto?: string) => {
+  const beginExamApi = async (
+    examId: string,
+    identityPhotos?: { selfiePhoto: string; idPhoto: string },
+  ) => {
     setStarting(examId);
     let attemptId: string | null = null;
     try {
@@ -112,7 +115,12 @@ function MyExams() {
         method: "POST",
         body: JSON.stringify({
           examId,
-          ...(identityPhoto ? { identityPhoto } : {}),
+          ...(identityPhotos
+            ? {
+              identitySelfiePhoto: identityPhotos.selfiePhoto,
+              identityIdPhoto: identityPhotos.idPhoto,
+            }
+            : {}),
         }),
       });
 
@@ -258,7 +266,7 @@ function MyExams() {
           releaseExamCamera();
           setPrestartExam(null);
         }}
-        onReady={(identityPhoto) => prestartExam && void beginExamApi(prestartExam.id, identityPhoto)}
+        onReady={(identityPhotos) => prestartExam && void beginExamApi(prestartExam.id, identityPhotos)}
       />
 
       {exams.length === 0 ? (

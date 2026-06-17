@@ -40,27 +40,23 @@ function loadLogoBuffer(): Buffer | null {
 
 function drawPoolLogo(doc: PDFKit.PDFDocument, y: number): number {
   const logo = loadLogoBuffer();
-  const boxW = 148;
-  const boxH = 52;
-  const boxX = (doc.page.width - boxW) / 2;
-
-  doc.roundedRect(boxX, y, boxW, boxH, 8).fill("#0f172a");
+  const logoW = 150;
+  const logoH = 92;
+  const logoX = (doc.page.width - logoW) / 2;
 
   if (logo) {
-    const logoW = 88;
-    const logoH = logoW * (40 / 183);
-    doc.image(logo, boxX + 16, y + (boxH - logoH) / 2, { width: logoW });
-    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(16);
-    doc.text("Ventrix Global", boxX + 16 + logoW + 10, y + 20, { width: boxW - logoW - 42 });
+    doc.image(logo, logoX, y, {
+      fit: [logoW, logoH],
+      align: "center",
+      valign: "center",
+    });
   } else {
-    doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(22);
-    doc.text("VG", boxX, y + 12, { width: boxW, align: "center" });
-    doc.fontSize(9).fillColor("#94a3b8");
-    doc.text("Ventrix Global", boxX, y + 34, { width: boxW, align: "center" });
+    doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(22);
+    doc.text("VG", MARGIN, y + 30, { width: contentWidth(doc), align: "center" });
   }
 
   doc.fillColor("#000000");
-  return y + boxH + 14;
+  return y + logoH + 10;
 }
 
 function optionLabel(index: number) {

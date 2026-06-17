@@ -122,10 +122,12 @@ async function buildExamStartPayload(
 
 router.post("/start", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, res) => {
   try {
-    const { examId, identityPhoto } = z
+    const { examId, identityPhoto, identitySelfiePhoto, identityIdPhoto } = z
       .object({
         examId: z.string(),
         identityPhoto: z.string().optional(),
+        identitySelfiePhoto: z.string().optional(),
+        identityIdPhoto: z.string().optional(),
       })
       .parse(req.body);
     const userId = req.user!.sub;
@@ -194,16 +196,25 @@ router.post("/start", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, re
     }
 
     let storedIdentityPhoto: string | null = null;
+    let storedIdentitySelfiePhoto: string | null = null;
+    let storedIdentityIdPhoto: string | null = null;
     if (exam.webcam) {
-      if (!identityPhoto) {
+      const selfiePhoto = identitySelfiePhoto ?? null;
+      const idPhoto = identityIdPhoto ?? identityPhoto ?? null;
+
+      if (!selfiePhoto || !idPhoto) {
         return res.status(400).json({
-          error: "Identity verification photo is required. Hold your ID next to your face and capture a clear photo.",
+          error: "Identity verification photos are required. Capture both your selfie and MyKad photo.",
         });
       }
-      storedIdentityPhoto = normalizeIdentityPhoto(identityPhoto);
-      if (!storedIdentityPhoto) {
-        return res.status(400).json({ error: "Invalid identity photo. Please capture the photo again." });
+
+      storedIdentitySelfiePhoto = normalizeIdentityPhoto(selfiePhoto);
+      storedIdentityIdPhoto = normalizeIdentityPhoto(idPhoto);
+      if (!storedIdentitySelfiePhoto || !storedIdentityIdPhoto) {
+        return res.status(400).json({ error: "Invalid identity photos. Please capture the photos again." });
       }
+
+      storedIdentityPhoto = storedIdentityIdPhoto;
     }
 
     const attempt = await prisma.examAttempt.create({
@@ -212,6 +223,8 @@ router.post("/start", requireAuth(Role.CANDIDATE), async (req: AuthedRequest, re
         examId,
         result: AttemptResult.IN_PROGRESS,
         identityPhoto: storedIdentityPhoto,
+        identitySelfiePhoto: storedIdentitySelfiePhoto,
+        identityIdPhoto: storedIdentityIdPhoto,
       },
     });
 

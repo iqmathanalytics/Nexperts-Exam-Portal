@@ -244,6 +244,8 @@ model ExamAttempt {
   endedAt        DateTime?
   warnings       Int            @default(0)
   identityPhoto  String?        @db.LongText
+  identitySelfiePhoto String?   @db.LongText
+  identityIdPhoto     String?   @db.LongText
 
   user       User                  @relation(fields: [userId], references: [id])
   exam       Exam                  @relation(fields: [examId], references: [id])

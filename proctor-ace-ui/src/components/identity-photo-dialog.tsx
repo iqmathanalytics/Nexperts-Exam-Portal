@@ -11,6 +11,8 @@ import { apiAuth } from "@/lib/api-auth";
 
 type IdentityPhotoData = {
   photo: string | null;
+  selfiePhoto?: string | null;
+  idPhoto?: string | null;
   candidate: string;
   exam: string;
   capturedAt: string;
@@ -56,7 +58,7 @@ export function IdentityPhotoDialog({ attemptId, open, onOpenChange }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-4xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 font-display">
             <IdCard className="h-5 w-5 text-accent" />
@@ -88,13 +90,32 @@ export function IdentityPhotoDialog({ attemptId, open, onOpenChange }: Props) {
                 Captured {new Date(data.capturedAt).toLocaleString()}
               </p>
             </div>
-            {data.photo ? (
-              <div className="overflow-hidden rounded-xl border border-border bg-muted">
-                <img src={data.photo} alt="Identity verification" className="max-h-[420px] w-full object-contain" />
+            {data.selfiePhoto || data.idPhoto || data.photo ? (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {data.selfiePhoto && (
+                  <div className="overflow-hidden rounded-xl border border-border bg-muted">
+                    <div className="border-b border-border bg-background px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      Selfie
+                    </div>
+                    <img src={data.selfiePhoto} alt="Candidate selfie" className="max-h-[360px] w-full object-contain" />
+                  </div>
+                )}
+                {(data.idPhoto || data.photo) && (
+                  <div className="overflow-hidden rounded-xl border border-border bg-muted">
+                    <div className="border-b border-border bg-background px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      MyKad / ID
+                    </div>
+                    <img
+                      src={data.idPhoto ?? data.photo ?? ""}
+                      alt="Candidate MyKad or ID"
+                      className="max-h-[360px] w-full object-contain"
+                    />
+                  </div>
+                )}
               </div>
             ) : (
               <p className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                No identity photo was captured for this attempt.
+                No identity photos were captured for this attempt.
               </p>
             )}
           </div>

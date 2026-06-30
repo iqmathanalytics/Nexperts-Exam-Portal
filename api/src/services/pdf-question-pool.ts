@@ -1,11 +1,5 @@
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
 import { pdfToBuffer } from "./pdf-buffer.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOGO_PATH = path.join(__dirname, "../../assets/ventrix_logo.png");
 
 export type QuestionPoolPdfQuestion = {
   title: string;
@@ -29,34 +23,15 @@ const OPTION_BORDER = "#cbd5e1";
 const CORRECT_FILL = "#ecfdf5";
 const CORRECT_BORDER = "#6ee7b7";
 
-function loadLogoBuffer(): Buffer | null {
-  try {
-    if (!fs.existsSync(LOGO_PATH)) return null;
-    return fs.readFileSync(LOGO_PATH);
-  } catch {
-    return null;
-  }
-}
-
-function drawPoolLogo(doc: PDFKit.PDFDocument, y: number): number {
-  const logo = loadLogoBuffer();
-  const logoW = 150;
-  const logoH = 92;
-  const logoX = (doc.page.width - logoW) / 2;
-
-  if (logo) {
-    doc.image(logo, logoX, y, {
-      fit: [logoW, logoH],
-      align: "center",
-      valign: "center",
-    });
-  } else {
-    doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(22);
-    doc.text("VG", MARGIN, y + 30, { width: contentWidth(doc), align: "center" });
-  }
-
+function drawPoolTitle(doc: PDFKit.PDFDocument, y: number): number {
+  doc.fillColor("#0f172a").font("Helvetica-Bold").fontSize(28);
+  doc.text("PASSEASY", MARGIN, y, {
+    width: contentWidth(doc),
+    align: "center",
+    characterSpacing: 1.8,
+  });
   doc.fillColor("#000000");
-  return y + logoH + 10;
+  return doc.y + 18;
 }
 
 function optionLabel(index: number) {
@@ -88,7 +63,7 @@ export async function generateQuestionPoolPdf(input: QuestionPoolPdfInput): Prom
   const w = contentWidth(doc);
 
   let y = MARGIN;
-  y = drawPoolLogo(doc, y);
+  y = drawPoolTitle(doc, y);
 
   y += 8;
   doc.font("Helvetica-Bold").fontSize(17).fillColor("#111827");

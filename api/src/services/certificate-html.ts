@@ -7,6 +7,7 @@ import {
   formatIssuedDateShort,
   type CertificateBodySegment,
 } from "../lib/certificate-copy.js";
+import { prisma } from "../lib/prisma.js";
 import layout from "../config/certificate-layout.json" with { type: "json" };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,6 +20,41 @@ export type CertificateHtmlInput = {
   credentialId: string;
   issuedOn: Date;
   score: number;
+};
+
+const CERT_DEFAULTS = {
+  brandName: "VENTRIX GLOBAL",
+  badgeText: "CERTIFIED",
+  presentedLabel: "THIS CERTIFICATE IS PRESENTED TO",
+  bodyTemplate: "In recognition of outstanding achievement in the [ Exam Title ] professional certification examination, with a final score of [ Score ]. Issued on [ Date ].",
+  verifyBaseUrl: "www.ventrix.global/certificate/",
+  recipientNameFont: "'Great Vibes', 'Segoe Script', cursive",
+  bodyFont: "'Montserrat', Helvetica, Arial, sans-serif",
+  recipientNameAlign: "center",
+  bodyAlign: "left",
+};
+
+type LayoutElementId =
+  | "brand"
+  | "badge"
+  | "presented"
+  | "recipient"
+  | "body"
+  | "credential"
+  | "issued"
+  | "verify";
+
+type LayoutPositions = Record<LayoutElementId, { x: number; y: number }>;
+
+const DEFAULT_LAYOUT: LayoutPositions = {
+  brand: { x: 30, y: 14.8 },
+  badge: { x: 30, y: 25 },
+  presented: { x: 30, y: 33.5 },
+  recipient: { x: 30, y: 38 },
+  body: { x: 30, y: 51 },
+  credential: { x: 30, y: 68 },
+  issued: { x: 30, y: 73 },
+  verify: { x: 30, y: 79 },
 };
 
 function escapeHtml(s: string) {
@@ -39,6 +75,30 @@ function bodyHtml(segments: CertificateBodySegment[]) {
     .join("");
 }
 
+function templateBodyHtml(template: string, input: CertificateHtmlInput, issuedLong: string) {
+  return escapeHtml(template)
+    .replace(/\[\s*exam title\s*\]/gi, `<strong style="font-weight:700;color:#141414">${escapeHtml(input.examTitle)}</strong>`)
+    .replace(/\[\s*score\s*\]/gi, `<strong style="font-weight:700;color:#141414">${input.score}%</strong>`)
+    .replace(/\[\s*date\s*\]/gi, `<strong style="font-weight:700;color:#141414">${escapeHtml(issuedLong)}</strong>`);
+}
+
+function parseLayout(layoutJson?: string | null): LayoutPositions {
+  if (!layoutJson) return DEFAULT_LAYOUT;
+  try {
+    return {
+      ...DEFAULT_LAYOUT,
+      ...(JSON.parse(layoutJson) as Partial<LayoutPositions>),
+    };
+  } catch {
+    return DEFAULT_LAYOUT;
+  }
+}
+
+function posCss(layout: LayoutPositions, id: LayoutElementId, width = "64.5%") {
+  const pos = layout[id];
+  return `left:${pos.x}%;top:${pos.y}%;width:${width}`;
+}
+
 function templateBackgroundDataUri(): string {
   const file = path.join(assetsDir, layout.templateFile);
   if (!fs.existsSync(file)) return "";
@@ -47,11 +107,28 @@ function templateBackgroundDataUri(): string {
 }
 
 /** HTML/CSS aligned with proctor-ace-ui/src/components/certificate-preview.tsx */
-export function buildCertificateHtml(input: CertificateHtmlInput): string {
+export async function buildCertificateHtml(input: CertificateHtmlInput): Promise<string> {
+  const dbConfig = await prisma.certificateConfig.findUnique({ where: { id: "default" } }).catch(() => null);
+  const cfg = {
+    brandName: dbConfig?.brandName ?? CERT_DEFAULTS.brandName,
+    badgeText: dbConfig?.badgeText ?? CERT_DEFAULTS.badgeText,
+    presentedLabel: dbConfig?.presentedLabel ?? CERT_DEFAULTS.presentedLabel,
+    bodyTemplate: dbConfig?.bodyTemplate ?? CERT_DEFAULTS.bodyTemplate,
+    verifyBaseUrl: dbConfig?.verifyBaseUrl ?? CERT_DEFAULTS.verifyBaseUrl,
+    recipientNameFont: dbConfig?.recipientNameFont ?? CERT_DEFAULTS.recipientNameFont,
+    bodyFont: dbConfig?.bodyFont ?? CERT_DEFAULTS.bodyFont,
+    recipientNameAlign: dbConfig?.recipientNameAlign ?? CERT_DEFAULTS.recipientNameAlign,
+    bodyAlign: dbConfig?.bodyAlign ?? CERT_DEFAULTS.bodyAlign,
+    layout: parseLayout(dbConfig?.layoutJson),
+  };
+
   const segments = buildRecognitionBodySegments(input);
   const issuedLong = formatIssuedDateLong(input.issuedOn);
   const issuedShort = formatIssuedDateShort(input.issuedOn);
   const bg = templateBackgroundDataUri();
+  const bodyContent = cfg.bodyTemplate
+    ? templateBodyHtml(cfg.bodyTemplate, input, issuedLong)
+    : bodyHtml(segments);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -76,6 +153,14 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
       width: 100%;
       height: 100%;
       object-fit: cover;
+      z-index: 0;
+    }
+    .text-block {
+      position: absolute;
+      z-index: 10;
+      text-align: left;
+      color: #141414;
+      font-family: 'Montserrat', Helvetica, Arial, sans-serif;
     }
     .main {
       position: absolute;
@@ -127,11 +212,7 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
       text-transform: uppercase;
       color: #9A7B1A;
     }
-    .bg {
-      z-index: 0;
-    }
     .presented {
-      margin-top: 22px;
       font-weight: 700;
       font-size: 10px;
       letter-spacing: 0.12em;
@@ -139,14 +220,14 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
     }
     .name-wrap {
       display: inline-block;
-      margin-top: 12px;
       max-width: 100%;
     }
     .name {
-      font-family: 'Great Vibes', 'Segoe Script', cursive;
+      font-family: ${cfg.recipientNameFont};
       font-size: 58px;
       line-height: 1.05;
       color: #C9A227;
+      text-align: ${cfg.recipientNameAlign};
     }
     .name-line {
       margin-top: 8px;
@@ -155,11 +236,12 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
       background: #B8860B;
     }
     .body {
-      margin-top: 24px;
+      font-family: ${cfg.bodyFont};
       font-weight: 400;
       font-size: 13.5px;
       line-height: 1.65;
       color: #252525;
+      text-align: ${cfg.bodyAlign};
     }
     .footer {
       position: absolute;
@@ -189,7 +271,6 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
       color: #252525;
     }
     .verify {
-      margin-top: 12px;
       font-size: 8.5px;
       color: #5C5C5C;
     }
@@ -198,33 +279,29 @@ export function buildCertificateHtml(input: CertificateHtmlInput): string {
 <body>
   <div class="cert">
     ${bg ? `<img class="bg" src="${bg}" alt="" />` : ""}
-    <div class="main">
-      <div class="cert-heading">
-        <p class="cert-heading-brand">VENTRIX GLOBAL</p>
-        <div class="cert-heading-rule" aria-hidden="true">
-          <span class="cert-heading-rule-line"></span>
-          <span class="cert-heading-rule-gem">◆</span>
-          <span class="cert-heading-rule-line"></span>
-        </div>
-        <p class="cert-heading-badge">CERTIFIED</p>
-      </div>
-      <p class="presented">THIS CERTIFICATE IS PRESENTED TO</p>
+    <div class="text-block" style="${posCss(cfg.layout, "recipient")}">
       <div class="name-wrap">
         <p class="name">${escapeHtml(input.recipientName)}</p>
         <div class="name-line"></div>
       </div>
-      <p class="body">${bodyHtml(segments)}</p>
     </div>
-    <div class="footer">
+    <div class="text-block" style="${posCss(cfg.layout, "body")}">
+      <p class="body">${bodyContent}</p>
+    </div>
+    <div class="text-block" style="${posCss(cfg.layout, "credential")}">
       <div class="footer-row">
         <span class="footer-label">Credential ID:</span>
         <span class="footer-value">${escapeHtml(input.credentialId)}</span>
       </div>
+    </div>
+    <div class="text-block" style="${posCss(cfg.layout, "issued")}">
       <div class="footer-row">
         <span class="footer-label">Issued date:</span>
         <span class="footer-value">${escapeHtml(issuedLong)}</span>
       </div>
-      <p class="verify">Verify at www.ventrix.global/certificate/${escapeHtml(input.credentialId)} · ${escapeHtml(issuedShort)}</p>
+    </div>
+    <div class="text-block" style="${posCss(cfg.layout, "verify")}">
+      <p class="verify">Verify at ${escapeHtml(cfg.verifyBaseUrl)}${escapeHtml(input.credentialId)} · ${escapeHtml(issuedShort)}</p>
     </div>
   </div>
 </body>

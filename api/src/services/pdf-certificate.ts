@@ -43,7 +43,7 @@ export async function generateCertificatePdf(input: CertificatePdfInput): Promis
     throw new Error("Certificate template image not found");
   }
 
-  const html = buildCertificateHtml(input);
+  const html = await buildCertificateHtml(input);
   return generateViaPuppeteer(html);
 }
 

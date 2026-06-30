@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import {
   LayoutDashboard, BookOpen, HelpCircle, Sparkles, Users, CreditCard, Ticket,
   Monitor, BarChart3, Award, FileText, Settings, LogOut, Bell, Search, ChevronDown, Link2,
-  AlertCircle, Info,
+  AlertCircle, Info, Palette,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ const nav: NavItem[] = [
   { to: "/admin/monitoring", label: "Exam Monitoring", icon: Monitor },
   { to: "/admin/results", label: "Results", icon: BarChart3 },
   { to: "/admin/certificates", label: "Certificates", icon: Award },
+  { to: "/admin/certificate-template", label: "Certificate Template", icon: Palette },
   { to: "/admin/reports", label: "Reports", icon: FileText },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];

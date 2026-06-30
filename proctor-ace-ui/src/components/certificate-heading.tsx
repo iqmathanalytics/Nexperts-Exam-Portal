@@ -1,14 +1,20 @@
 /** Shared certificate title — keep in sync with api/src/services/certificate-html.ts */
-export function CertificateHeading() {
+export function CertificateHeading({
+  brandName = "VENTRIX GLOBAL",
+  badgeText = "CERTIFIED",
+}: {
+  brandName?: string;
+  badgeText?: string;
+} = {}) {
   return (
     <div className="cert-heading">
-      <p className="cert-heading-brand">VENTRIX GLOBAL</p>
+      <p className="cert-heading-brand">{brandName}</p>
       <div className="cert-heading-rule" aria-hidden>
         <span className="cert-heading-rule-line" />
         <span className="cert-heading-rule-gem">◆</span>
         <span className="cert-heading-rule-line" />
       </div>
-      <p className="cert-heading-badge">CERTIFIED</p>
+      <p className="cert-heading-badge">{badgeText}</p>
     </div>
   );
 }

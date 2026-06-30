@@ -1580,6 +1580,99 @@ router.post("/certificates/:id/regenerate", async (req, res) => {
   res.json({ credentialId: updated.credentialId });
 });
 
+// ——— Certificate Template Config ———
+
+const CERT_CONFIG_DEFAULTS = {
+  brandName: "VENTRIX GLOBAL",
+  badgeText: "CERTIFIED",
+  presentedLabel: "THIS CERTIFICATE IS PRESENTED TO",
+  bodyTemplate: "In recognition of outstanding achievement in the [ Exam Title ] professional certification examination, with a final score of [ Score ]. Issued on [ Date ].",
+  verifyBaseUrl: "www.ventrix.global/certificate/",
+  recipientNameFont: "'Great Vibes', 'Segoe Script', cursive",
+  bodyFont: "'Montserrat', Helvetica, Arial, sans-serif",
+  recipientNameAlign: "center",
+  bodyAlign: "left",
+  layoutJson: null as string | null,
+};
+
+router.get("/certificate-config", async (_req, res) => {
+  try {
+    const config = await prisma.certificateConfig.findUnique({ where: { id: "default" } });
+    res.json({ config: config ?? { id: "default", ...CERT_CONFIG_DEFAULTS } });
+  } catch (err) {
+    console.error("GET /certificate-config error:", err);
+    res.status(500).json({ error: "Failed to load certificate config" });
+  }
+});
+
+router.put("/certificate-config", async (req, res) => {
+  try {
+    const schema = z.object({
+      brandName: z.string().min(1).max(100),
+      badgeText: z.string().min(1).max(100),
+      presentedLabel: z.string().min(1).max(200),
+      bodyTemplate: z.string().max(1000).nullable().optional(),
+      verifyBaseUrl: z.string().min(1).max(200),
+      recipientNameFont: z.string().min(1).max(120).optional(),
+      bodyFont: z.string().min(1).max(120).optional(),
+      recipientNameAlign: z.enum(["left", "center", "right"]).optional(),
+      bodyAlign: z.enum(["left", "center", "right"]).optional(),
+      layoutJson: z.string().max(5000).nullable().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ error: "Invalid input", detail: JSON.stringify(parsed.error.flatten()) });
+    const data = {
+      ...parsed.data,
+      recipientNameFont: parsed.data.recipientNameFont || CERT_CONFIG_DEFAULTS.recipientNameFont,
+      bodyFont: parsed.data.bodyFont || CERT_CONFIG_DEFAULTS.bodyFont,
+      recipientNameAlign: parsed.data.recipientNameAlign || CERT_CONFIG_DEFAULTS.recipientNameAlign,
+      bodyAlign: parsed.data.bodyAlign || CERT_CONFIG_DEFAULTS.bodyAlign,
+    };
+
+    const config = await prisma.certificateConfig.upsert({
+      where: { id: "default" },
+      update: data,
+      create: { id: "default", ...data },
+    });
+    res.json({ config });
+  } catch (err) {
+    console.error("PUT /certificate-config error:", err);
+    res.status(500).json({ error: "Failed to save certificate config" });
+  }
+});
+
+const certImageUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    cb(null, file.mimetype.startsWith("image/"));
+  },
+});
+
+router.post(
+  "/certificate-config/image",
+  certImageUpload.single("image"),
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: "No image uploaded" });
+      const { fileURLToPath } = await import("url");
+      const path = await import("path");
+      const fs = await import("fs");
+      const __dirname = path.dirname(fileURLToPath(import.meta.url));
+      const dest = path.join(__dirname, "../../assets/certificate-template.png");
+      const uiDest = path.join(__dirname, "../../../proctor-ace-ui/public/certificate-template.png");
+      fs.writeFileSync(dest, req.file.buffer);
+      if (fs.existsSync(path.dirname(uiDest))) {
+        fs.writeFileSync(uiDest, req.file.buffer);
+      }
+      res.json({ ok: true });
+    } catch (err) {
+      console.error("POST /certificate-config/image error:", err);
+      res.status(500).json({ error: "Failed to upload image" });
+    }
+  },
+);
+
 // ——— Reports CSV ———
 router.get("/reports/:type", async (req, res) => {
   const type = String(req.params.type);

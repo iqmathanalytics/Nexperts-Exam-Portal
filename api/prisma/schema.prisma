@@ -285,8 +285,12 @@ model CertificateConfig {
   presentedLabel String   @default("THIS CERTIFICATE IS PRESENTED TO")
   bodyTemplate   String?
   verifyBaseUrl  String   @default("www.ventrix.global/certificate/")
-  updatedAt      DateTime
-  layoutJson     Json?
+  recipientNameFont String @default("'Great Vibes', 'Segoe Script', cursive")
+  bodyFont          String @default("'Montserrat', Helvetica, Arial, sans-serif")
+  recipientNameAlign String @default("center")
+  bodyAlign          String @default("left")
+  layoutJson     String?  @db.Text
+  updatedAt      DateTime @updatedAt
 }
 
 model ProctoringViolation {

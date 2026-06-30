@@ -39,6 +39,7 @@ import { Route as AdminPaymentsRouteImport } from './routes/admin.payments'
 import { Route as AdminMonitoringRouteImport } from './routes/admin.monitoring'
 import { Route as AdminExamsRouteImport } from './routes/admin.exams'
 import { Route as AdminCertificatesRouteImport } from './routes/admin.certificates'
+import { Route as AdminCertificateTemplateRouteImport } from './routes/admin.certificate-template'
 import { Route as AdminAiGeneratorRouteImport } from './routes/admin.ai-generator'
 import { Route as AdminUsersIndexRouteImport } from './routes/admin.users.index'
 import { Route as AdminExamsIndexRouteImport } from './routes/admin.exams.index'
@@ -198,6 +199,12 @@ const AdminCertificatesRoute = AdminCertificatesRouteImport.update({
   path: '/certificates',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminCertificateTemplateRoute =
+  AdminCertificateTemplateRouteImport.update({
+    id: '/certificate-template',
+    path: '/certificate-template',
+    getParentRoute: () => AdminRoute,
+  } as any)
 const AdminAiGeneratorRoute = AdminAiGeneratorRouteImport.update({
   id: '/ai-generator',
   path: '/ai-generator',
@@ -251,6 +258,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/ai-generator': typeof AdminAiGeneratorRoute
+  '/admin/certificate-template': typeof AdminCertificateTemplateRoute
   '/admin/certificates': typeof AdminCertificatesRoute
   '/admin/exams': typeof AdminExamsRouteWithChildren
   '/admin/monitoring': typeof AdminMonitoringRoute
@@ -289,6 +297,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/ai-generator': typeof AdminAiGeneratorRoute
+  '/admin/certificate-template': typeof AdminCertificateTemplateRoute
   '/admin/certificates': typeof AdminCertificatesRoute
   '/admin/monitoring': typeof AdminMonitoringRoute
   '/admin/payments': typeof AdminPaymentsRoute
@@ -328,6 +337,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/verify-otp': typeof VerifyOtpRoute
   '/admin/ai-generator': typeof AdminAiGeneratorRoute
+  '/admin/certificate-template': typeof AdminCertificateTemplateRoute
   '/admin/certificates': typeof AdminCertificatesRoute
   '/admin/exams': typeof AdminExamsRouteWithChildren
   '/admin/monitoring': typeof AdminMonitoringRoute
@@ -370,6 +380,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/verify-otp'
     | '/admin/ai-generator'
+    | '/admin/certificate-template'
     | '/admin/certificates'
     | '/admin/exams'
     | '/admin/monitoring'
@@ -408,6 +419,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/verify-otp'
     | '/admin/ai-generator'
+    | '/admin/certificate-template'
     | '/admin/certificates'
     | '/admin/monitoring'
     | '/admin/payments'
@@ -446,6 +458,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/verify-otp'
     | '/admin/ai-generator'
+    | '/admin/certificate-template'
     | '/admin/certificates'
     | '/admin/exams'
     | '/admin/monitoring'
@@ -702,6 +715,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCertificatesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/certificate-template': {
+      id: '/admin/certificate-template'
+      path: '/certificate-template'
+      fullPath: '/admin/certificate-template'
+      preLoaderRoute: typeof AdminCertificateTemplateRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/ai-generator': {
       id: '/admin/ai-generator'
       path: '/ai-generator'
@@ -793,6 +813,7 @@ const AdminUsersRouteWithChildren = AdminUsersRoute._addFileChildren(
 
 interface AdminRouteChildren {
   AdminAiGeneratorRoute: typeof AdminAiGeneratorRoute
+  AdminCertificateTemplateRoute: typeof AdminCertificateTemplateRoute
   AdminCertificatesRoute: typeof AdminCertificatesRoute
   AdminExamsRoute: typeof AdminExamsRouteWithChildren
   AdminMonitoringRoute: typeof AdminMonitoringRoute
@@ -809,6 +830,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminAiGeneratorRoute: AdminAiGeneratorRoute,
+  AdminCertificateTemplateRoute: AdminCertificateTemplateRoute,
   AdminCertificatesRoute: AdminCertificatesRoute,
   AdminExamsRoute: AdminExamsRouteWithChildren,
   AdminMonitoringRoute: AdminMonitoringRoute,

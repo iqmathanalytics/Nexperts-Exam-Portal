@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, Palette } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/admin-bits";
 import { Button } from "@/components/ui/button";
@@ -85,7 +85,15 @@ function AdminCertificates() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Certificates" sub="Issue tracking, regeneration, and credential IDs." />
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <PageHeader title="Certificates" sub="Issue tracking, regeneration, and credential IDs." />
+        <Button asChild variant="outline" size="sm">
+          <Link to="/admin/certificate-template">
+            <Palette className="mr-1.5 h-3.5 w-3.5" />
+            Edit Template
+          </Link>
+        </Button>
+      </div>
 
       <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-2">

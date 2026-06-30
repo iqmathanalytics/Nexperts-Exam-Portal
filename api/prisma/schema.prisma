@@ -278,6 +278,17 @@ model Certificate {
   exam Exam @relation(fields: [examId], references: [id])
 }
 
+model CertificateConfig {
+  id             String   @id @default("default")
+  brandName      String   @default("VENTRIX GLOBAL")
+  badgeText      String   @default("CERTIFIED")
+  presentedLabel String   @default("THIS CERTIFICATE IS PRESENTED TO")
+  bodyTemplate   String?
+  verifyBaseUrl  String   @default("www.ventrix.global/certificate/")
+  updatedAt      DateTime
+  layoutJson     Json?
+}
+
 model ProctoringViolation {
   id        String   @id @default(cuid())
   attemptId String

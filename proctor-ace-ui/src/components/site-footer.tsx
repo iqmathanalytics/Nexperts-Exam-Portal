@@ -25,9 +25,8 @@ export function SiteFooter() {
           <FooterCol title="Legal" links={["Privacy", "Terms", "Compliance", "Security"]} />
         </div>
 
-        <div className="mt-12 flex flex-col items-center justify-between gap-4 border-t border-sidebar-border pt-6 text-xs text-sidebar-foreground/60 md:flex-row">
+        <div className="mt-12 border-t border-sidebar-border pt-6 text-xs text-sidebar-foreground/60">
           <p>© {new Date().getFullYear()} {BRAND.copyright}. All rights reserved.</p>
-          <p>ISO 27001 · SOC 2 Type II · GDPR compliant</p>
         </div>
       </div>
     </footer>
